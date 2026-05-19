@@ -1,11 +1,6 @@
 """Unit tests for discord_client.py — all HTTP calls are mocked."""
 
 import pytest
-from pytest_httpx import HTTPXMock
-import httpx
-import json
-
-# We test the logic by patching requests; use a fixture approach
 from unittest.mock import patch, MagicMock
 
 from discord_client import (
@@ -158,6 +153,25 @@ def test_fetch_network_error_raises_client_error():
     with patch("discord_client.requests.get", side_effect=req.exceptions.ConnectionError("refused")):
         with pytest.raises(DiscordClientError, match="Network error"):
             fetch_thread_messages(THREAD_ID, "fake-token")
+
+
+def test_fetch_retries_on_429():
+    rate_limited = MagicMock()
+    rate_limited.status_code = 429
+    rate_limited.headers = {"Retry-After": "0.1"}
+
+    success = MagicMock()
+    success.ok = True
+    success.status_code = 200
+    success.json.return_value = [_make_raw_message("1", "Alice", "hello")]
+
+    with patch("discord_client.requests.get", side_effect=[rate_limited, success]):
+        with patch("discord_client.time.sleep") as mock_sleep:
+            msgs = fetch_thread_messages(THREAD_ID, "fake-token")
+
+    mock_sleep.assert_called_once_with(0.1)
+    assert len(msgs) == 1
+    assert msgs[0].content == "hello"
 
 
 def test_fetch_paginates_when_full_batch():

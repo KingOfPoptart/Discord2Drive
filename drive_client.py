@@ -66,24 +66,27 @@ def _resolve_or_create_folder(service, name: str, parent_id: str) -> str:
         f"and mimeType = '{_FOLDER_MIME}' "
         f"and trashed = false"
     )
-    results = (
-        service.files()
-        .list(q=query, fields="files(id, name)", spaces="drive")
-        .execute()
-    )
-    files = results.get("files", [])
-    if files:
-        return files[0]["id"]
-
-    folder = (
-        service.files()
-        .create(
-            body={"name": name, "mimeType": _FOLDER_MIME, "parents": [parent_id]},
-            fields="id",
+    try:
+        results = (
+            service.files()
+            .list(q=query, fields="files(id, name)", spaces="drive")
+            .execute()
         )
-        .execute()
-    )
-    return folder["id"]
+        files = results.get("files", [])
+        if files:
+            return files[0]["id"]
+
+        folder = (
+            service.files()
+            .create(
+                body={"name": name, "mimeType": _FOLDER_MIME, "parents": [parent_id]},
+                fields="id",
+            )
+            .execute()
+        )
+        return folder["id"]
+    except HttpError as e:
+        raise DriveClientError(f"Drive API error resolving folder {name!r}: {e}") from e
 
 
 def resolve_drive_path(service, path: str, root_id: str = "root") -> str:
@@ -133,26 +136,29 @@ def upload_file(
         resumable=False,
     )
 
-    if existing:
-        file = (
-            service.files()
-            .update(
-                fileId=existing[0]["id"],
-                media_body=media,
-                fields="id, webViewLink",
+    try:
+        if existing:
+            file = (
+                service.files()
+                .update(
+                    fileId=existing[0]["id"],
+                    media_body=media,
+                    fields="id, webViewLink",
+                )
+                .execute()
             )
-            .execute()
-        )
-    else:
-        file = (
-            service.files()
-            .create(
-                body={"name": filename, "parents": [folder_id]},
-                media_body=media,
-                fields="id, webViewLink",
+        else:
+            file = (
+                service.files()
+                .create(
+                    body={"name": filename, "parents": [folder_id]},
+                    media_body=media,
+                    fields="id, webViewLink",
+                )
+                .execute()
             )
-            .execute()
-        )
+    except HttpError as e:
+        raise DriveClientError(f"Drive API error uploading {filename!r}: {e}") from e
 
     return file.get("webViewLink", f"https://drive.google.com/file/d/{file['id']}/view")
 

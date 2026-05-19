@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import sys
+from pathlib import Path
 
 import config
 import discord_client
@@ -22,7 +23,7 @@ def main() -> None:
     )
     parser.add_argument(
         "drive_paths",
-        nargs="+",
+        nargs="*",
         metavar="drive_path",
         help="Google Drive folder path(s) to upload to (e.g. 'Scenes/Act 1'). "
              "Folders are created if they don't exist.",
@@ -33,12 +34,20 @@ def main() -> None:
         help="Fetch and format the transcript but do not upload to Drive. "
              "Prints the transcript to stdout.",
     )
+    parser.add_argument(
+        "--output-local",
+        metavar="dir",
+        help="Save the transcript to this local directory.",
+    )
 
     args = parser.parse_args()
 
+    if not args.drive_paths and not args.dry_run and not args.output_local:
+        parser.error("specify at least one drive_path, --output-local <dir>, or --dry-run")
+
     # Load config — exits with a clear message if anything is missing
     try:
-        cfg = config.load()
+        cfg = config.load(require_google=bool(args.drive_paths) and not args.dry_run)
     except config.ConfigError as e:
         print(f"Configuration error:\n{e}", file=sys.stderr)
         sys.exit(1)
@@ -66,9 +75,19 @@ def main() -> None:
     transcript = formatter.format_transcript(thread_name, messages)
     filename = formatter.make_filename(thread_name)
 
+    if args.output_local:
+        out_dir = Path(args.output_local)
+        out_dir.mkdir(parents=True, exist_ok=True)
+        out_path = out_dir / filename
+        out_path.write_text(transcript, encoding="utf-8")
+        print(f"  Saved locally: {out_path}")
+
     if args.dry_run:
         print(f"\n--- {filename} ---\n")
         print(transcript)
+        return
+
+    if not args.drive_paths:
         return
 
     # Upload to each Drive path

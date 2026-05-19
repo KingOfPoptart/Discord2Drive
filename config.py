@@ -28,14 +28,15 @@ class ConfigError(Exception):
 @dataclass(frozen=True)
 class Config:
     discord_token: str
-    google_creds_file: Path
+    google_creds_file: Path | None
     google_token_file: Path
 
 
-def load() -> Config:
+def load(require_google: bool = True) -> Config:
     """
     Read configuration from ~/discord2drive/.
     Raises ConfigError with a clear message if anything is missing.
+    Pass require_google=False to skip Google credential validation (e.g. for --dry-run).
     """
     errors: list[str] = []
 
@@ -45,7 +46,7 @@ def load() -> Config:
             "containing your bot token."
         )
 
-    if not _GOOGLE_CREDS_FILE.exists():
+    if require_google and not _GOOGLE_CREDS_FILE.exists():
         errors.append(
             f"Google credentials not found. Download your OAuth client JSON "
             f"from Google Cloud Console and save it to {_GOOGLE_CREDS_FILE}"
@@ -60,8 +61,10 @@ def load() -> Config:
     if not token:
         raise ConfigError(f"{_DISCORD_TOKEN_FILE} is empty — paste your bot token in it.")
 
+    google_creds = _GOOGLE_CREDS_FILE if _GOOGLE_CREDS_FILE.exists() else None
+
     return Config(
         discord_token=token,
-        google_creds_file=_GOOGLE_CREDS_FILE,
+        google_creds_file=google_creds,
         google_token_file=_GOOGLE_TOKEN_FILE,
     )

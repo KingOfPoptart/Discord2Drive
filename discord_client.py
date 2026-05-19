@@ -1,6 +1,7 @@
 """Fetches all messages from a Discord thread via the REST API."""
 
 import re
+import time
 import requests
 import requests.exceptions
 from dataclasses import dataclass, field
@@ -65,6 +66,11 @@ def fetch_thread_messages(thread_id: str, bot_token: str) -> list[Message]:
             )
         except requests.exceptions.RequestException as e:
             raise DiscordClientError(f"Network error fetching messages: {e}") from e
+
+        if resp.status_code == 429:
+            retry_after = float(resp.headers.get("Retry-After", "1"))
+            time.sleep(retry_after)
+            continue
 
         if resp.status_code == 401:
             raise DiscordClientError("Invalid bot token — check your credentials.")
@@ -135,16 +141,21 @@ def fetch_thread_messages(thread_id: str, bot_token: str) -> list[Message]:
 def fetch_thread_info(thread_id: str, bot_token: str) -> dict:
     """Return channel/thread metadata (name, type, etc.)."""
     headers = {"Authorization": f"Bot {bot_token}"}
-    try:
-        resp = requests.get(
-            f"{DISCORD_API}/channels/{thread_id}",
-            headers=headers,
-            timeout=30,
-        )
-    except requests.exceptions.RequestException as e:
-        raise DiscordClientError(f"Network error fetching thread info: {e}") from e
-    if not resp.ok:
-        raise DiscordClientError(
-            f"Could not fetch thread info: {resp.status_code} {resp.text}"
-        )
-    return resp.json()
+    while True:
+        try:
+            resp = requests.get(
+                f"{DISCORD_API}/channels/{thread_id}",
+                headers=headers,
+                timeout=30,
+            )
+        except requests.exceptions.RequestException as e:
+            raise DiscordClientError(f"Network error fetching thread info: {e}") from e
+        if resp.status_code == 429:
+            retry_after = float(resp.headers.get("Retry-After", "1"))
+            time.sleep(retry_after)
+            continue
+        if not resp.ok:
+            raise DiscordClientError(
+                f"Could not fetch thread info: {resp.status_code} {resp.text}"
+            )
+        return resp.json()

@@ -9,6 +9,7 @@ CLI tool that exports Discord thread transcripts to Google Drive. Given a thread
 ```bash
 uv run discord2drive "<thread_url>" "<drive_path>" ["<drive_path>" ...]
 uv run discord2drive "<thread_url>" "<drive_path>" --dry-run
+uv run discord2drive "<thread_url>" "<drive_path>" --output-local "<dir>"
 ```
 
 ## How to run tests

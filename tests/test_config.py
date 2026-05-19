@@ -65,6 +65,16 @@ def test_load_raises_if_both_missing(tmp_path):
     assert "Google credentials" in str(exc_info.value)
 
 
+def test_load_skips_google_check_when_not_required(tmp_path):
+    _mock_dir(tmp_path, google_creds=False)
+    with patch("config._DISCORD_TOKEN_FILE", tmp_path / "discord_token"), \
+         patch("config._GOOGLE_CREDS_FILE", tmp_path / "google_creds.json"), \
+         patch("config._GOOGLE_TOKEN_FILE", tmp_path / "google_token.json"):
+        cfg = load(require_google=False)
+    assert cfg.discord_token == "fake-token"
+    assert cfg.google_creds_file is None
+
+
 def test_load_raises_if_token_file_empty(tmp_path):
     (tmp_path / "discord_token").write_text("   ")
     (tmp_path / "google_creds.json").write_text("{}")

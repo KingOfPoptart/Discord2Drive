@@ -35,6 +35,14 @@ uv run discord2drive \
   --dry-run
 ```
 
+Save the transcript to a local folder (in addition to uploading to Drive):
+```bash
+uv run discord2drive \
+  "https://discord.com/channels/1234567890/9876543210" \
+  "Scenes/Master" \
+  --output-local ~/transcripts
+```
+
 ### Output format
 
 Each thread is saved as a markdown file named `{thread-name}_{date}.md`:
@@ -245,4 +253,7 @@ Discord2Drive/
     drive_client.py      # Google Drive — folder resolution and file upload
     pyproject.toml       # dependencies and project metadata
     uv.lock              # locked dependency versions
+    CLAUDE.md            # developer steering notes for Claude Code
+    .claude/
+        PLAN.md          # implementation plan and notes
 ```
