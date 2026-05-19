@@ -44,7 +44,8 @@ def format_transcript(thread_name: str, messages: list[Message]) -> str:
             content_parts.append(msg.content)
         for att in msg.attachments:
             content_parts.append(f"*[Attachment: {att.filename}]({att.url})*")
-        lines.append(f"{prefix} " + "\n".join(content_parts) if content_parts else prefix)
+        lines.append(f"{prefix} " + "\n\n".join(content_parts) if content_parts else prefix)
+        lines.append("")  # blank line so each message is its own markdown paragraph
 
     return "\n".join(lines)
 
