@@ -52,7 +52,7 @@ Integration tests require credentials in `~/discord2drive/` and hit real APIs. I
 - `tests/integration/test_discord_live.py` — fetches the thread in `integ.json`, verifies messages and transcript
 - `tests/integration/test_drive_live.py` — creates `discord2drive-test/` in Drive, uploads, verifies, then **deletes the folder on cleanup**
 - `tests/integration/test_e2e.py` — runs the full CLI pipeline; uploads to `discord2drive-test/e2e`
-- `tests/integration/conftest.py` — loads `integ.json` and provides `test_thread_url` as a session-scoped fixture
+- `tests/integration/conftest.py` — owns all credential loading; provides `discord_token`, `google_creds_path`, `google_token_path`, `integ_config`, and `test_thread_url` as session-scoped fixtures; fails with setup instructions if any file is missing
 
 ### integ.json format
 
@@ -88,8 +88,8 @@ uv pip install -e .
 
 ## Dependencies
 
-Managed by `uv`. To add a package: `uv add <package>`. To install everything: `uv sync`.
-Do not use `pip` directly — it bypasses the lockfile.
+Managed by `uv`. To add a package: `uv add <package>`. To install everything including the CLI entry point: `uv pip install -e .`.
+Do not use plain `pip` (without `uv`) — it bypasses the lockfile.
 
 ## Known gotchas
 

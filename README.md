@@ -190,10 +190,10 @@ The file `google_token.json` will be created automatically in the same folder th
 ### Install dependencies
 
 ```bash
-uv sync
+uv pip install -e .
 ```
 
-This installs all runtime and dev dependencies into a local `.venv`.
+This creates `.venv`, installs all dependencies, and registers the `discord2drive` command.
 
 ### Run the tests
 
@@ -228,7 +228,7 @@ tests/
     test_drive_client.py         # folder resolution and file upload (mocked)
     test_formatter.py            # transcript formatting (pure, no I/O)
     integration/
-        conftest.py              # loads integ.json, provides test_thread_url fixture
+        conftest.py              # all credential checks; provides discord_token, google_creds_path, test_thread_url fixtures
         test_discord_live.py     # fetches the test thread from integ.json
         test_drive_live.py       # creates a folder, uploads, and cleans up
         test_e2e.py              # runs the full pipeline via the CLI
