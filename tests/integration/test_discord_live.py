@@ -1,0 +1,72 @@
+"""
+Integration test: hits the real Discord API against the known test thread.
+
+Skipped automatically if DISCORD_BOT_TOKEN is not set or ~/.sceneexporterauthtoken
+is not present.
+"""
+
+import os
+import pytest
+from pathlib import Path
+
+from discord_client import fetch_thread_messages, fetch_thread_info, parse_thread_url
+from formatter import format_transcript, make_filename
+
+TEST_THREAD_URL = (
+    "https://discordapp.com/channels/1309606609080811531/1506288385826885632"
+)
+
+
+def _get_token() -> str | None:
+    token = os.environ.get("DISCORD_BOT_TOKEN")
+    if token:
+        return token.strip()
+    token_file = Path.home() / "discord2drive" / "discord_token"
+    if token_file.exists():
+        return token_file.read_text(encoding="utf-8").strip()
+    return None
+
+
+TOKEN = _get_token()
+
+pytestmark = pytest.mark.skipif(
+    TOKEN is None,
+    reason="No Discord bot token found — set DISCORD_BOT_TOKEN or create ~/.sceneexporterauthtoken",
+)
+
+
+def test_parse_test_thread_url():
+    server_id, thread_id = parse_thread_url(TEST_THREAD_URL)
+    assert server_id == "1309606609080811531"
+    assert thread_id == "1506288385826885632"
+
+
+def test_fetch_thread_info():
+    info = fetch_thread_info("1506288385826885632", TOKEN)
+    assert "name" in info
+    print(f"\nThread name: {info['name']}")
+    print(f"Thread type: {info.get('type')}")
+
+
+def test_fetch_messages_returns_results():
+    messages = fetch_thread_messages("1506288385826885632", TOKEN)
+    assert len(messages) > 0, "Expected at least one message in the test thread"
+    print(f"\nFetched {len(messages)} messages")
+    for msg in messages[:3]:
+        print(f"  [{msg.timestamp}] {msg.author}: {msg.content[:60]!r}")
+
+
+def test_full_pipeline_produces_transcript():
+    info = fetch_thread_info("1506288385826885632", TOKEN)
+    messages = fetch_thread_messages("1506288385826885632", TOKEN)
+
+    thread_name = info.get("name", "Unknown Thread")
+    transcript = format_transcript(thread_name, messages)
+    filename = make_filename(thread_name)
+
+    assert f"# {thread_name}" in transcript
+    assert len(transcript) > 100
+    print(f"\nFilename: {filename}")
+    print(f"Transcript length: {len(transcript)} chars")
+    print("\n--- Full transcript ---")
+    print(transcript)

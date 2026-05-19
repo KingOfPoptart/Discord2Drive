@@ -1,0 +1,72 @@
+# Discord2Drive — Claude Steering
+
+## What this project is
+
+CLI tool that exports Discord thread transcripts to Google Drive. Given a thread URL and one or more Drive folder paths, it fetches all messages, formats them as markdown, and uploads the file. Folders are created automatically. Re-running overwrites rather than duplicating.
+
+## How to run the tool
+
+```bash
+uv run discord2drive "<thread_url>" "<drive_path>" ["<drive_path>" ...]
+uv run discord2drive "<thread_url>" "<drive_path>" --dry-run
+```
+
+## How to run tests
+
+```bash
+# Unit tests only — no credentials needed, always safe to run
+uv run pytest tests/ --ignore=tests/integration
+
+# Full suite including live API calls
+uv run pytest tests/
+
+# Single file
+uv run pytest tests/test_formatter.py -v
+```
+
+## Project structure
+
+| File | Role |
+|---|---|
+| `main.py` | CLI entry point (argparse), wires all modules together |
+| `config.py` | Loads credentials from `~/discord2drive/`, raises `ConfigError` with clear messages |
+| `discord_client.py` | Discord REST API — parses thread URLs, fetches all messages (paginated) |
+| `formatter.py` | Pure function: message list → markdown transcript string |
+| `drive_client.py` | Google OAuth2, folder path resolution, file upload/overwrite |
+
+## Credentials
+
+All credentials live in `~/discord2drive/` — never in the project directory.
+
+| File | Contents |
+|---|---|
+| `~/discord2drive/discord_token` | Discord bot token (plain text) |
+| `~/discord2drive/google_creds.json` | OAuth client credentials (from Google Cloud Console) |
+| `~/discord2drive/google_token.json` | OAuth token cache — auto-created on first run |
+
+## Integration tests
+
+Integration tests require credentials in `~/discord2drive/` and hit real APIs. They are skipped automatically when credentials are absent.
+
+- `tests/integration/test_discord_live.py` — fetches the test thread (`1506288385826885632` in server `1309606609080811531`)
+- `tests/integration/test_drive_live.py` — creates `discord2drive-test/` in Drive, uploads, verifies, then **deletes the folder on cleanup**
+- `tests/integration/test_e2e.py` — runs the full CLI pipeline; uploads to `discord2drive-test/e2e`
+
+## Discord API notes
+
+- Thread URLs: `https://discord.com/channels/{server_id}/{thread_id}` — both `discord.com` and `discordapp.com` are supported
+- Messages are returned newest-first by the API; `discord_client.py` reverses them
+- Message type 21 = thread starter — real content is in `referenced_message`, not the message body itself
+- Message type 4 = channel rename system event — skip it
+- Empty messages (no content, no attachments) are skipped
+
+## Google Drive notes
+
+- Scope used: `https://www.googleapis.com/auth/drive` (full access — needed to find existing folders the app didn't create)
+- `resolve_drive_path` walks a slash-separated path, creating any missing folders
+- `upload_file` checks for an existing file with the same name in the target folder and updates it rather than creating a duplicate
+
+## Dependencies
+
+Managed by `uv`. To add a package: `uv add <package>`. To install everything: `uv sync`.
+Do not use `pip` directly — it bypasses the lockfile.
