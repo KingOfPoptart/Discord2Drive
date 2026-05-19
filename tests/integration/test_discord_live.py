@@ -2,7 +2,8 @@
 Integration test: hits the real Discord API against the test thread
 defined in ~/discord2drive/integ.json.
 
-Skipped automatically if discord_token or integ.json are absent.
+Skipped if discord_token is absent. Fails with setup instructions if
+integ.json is absent or missing the test_thread_url key.
 """
 
 import os

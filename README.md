@@ -80,11 +80,11 @@ Davan caught her sleeve. "You knew, didn't you."
   powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
   ```
 
-After installing uv, restart your terminal, then clone or download this repository and run `uv sync` inside it to install dependencies:
+After installing uv, restart your terminal, then clone or download this repository and run the following inside it to install dependencies and register the `discord2drive` command:
 
 ```bash
 cd Discord2Drive
-uv sync
+uv pip install -e .
 ```
 
 ---
@@ -147,6 +147,8 @@ Create a `discord2drive` folder in your home directory and place both credential
 ~/discord2drive/
     discord_token           ← paste your Discord bot token here (plain text, no quotes)
     google_creds.json       ← the JSON file downloaded from Google Cloud Console
+    google_token.json       ← auto-created on first run, do not create manually
+    integ.json              ← integration test config (developers only, see Development section)
 ```
 
 To create the folder and token file from the terminal:
@@ -165,6 +167,8 @@ mv ~/Downloads/client_secret_*.json ~/discord2drive/google_creds.json
 C:\Users\YourName\discord2drive\
     discord_token           ← paste your Discord bot token here (plain text, no quotes)
     google_creds.json       ← the JSON file downloaded from Google Cloud Console
+    google_token.json       ← auto-created on first run, do not create manually
+    integ.json              ← integration test config (developers only, see Development section)
 ```
 
 To create the folder and token file from PowerShell:
@@ -201,7 +205,7 @@ uv run pytest tests/ --ignore=tests/integration
 uv run pytest tests/
 ```
 
-The integration tests hit the real Discord and Google Drive APIs. They are skipped automatically if any required file is absent, so the unit tests always run cleanly without any setup.
+The integration tests hit the real Discord and Google Drive APIs. Tests that require credential files (`discord_token`, `google_creds.json`) are skipped automatically when those files are absent. Tests that require `integ.json` **fail** with setup instructions if the file is missing — this is intentional so misconfiguration is obvious rather than silent.
 
 ### Integration test config
 

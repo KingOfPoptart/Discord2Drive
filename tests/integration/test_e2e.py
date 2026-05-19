@@ -1,6 +1,7 @@
 """
 End-to-end integration test: runs the full pipeline via main.py.
-Skipped if credential files or integ.json are missing.
+Skipped if discord_token or google_creds.json are absent. Fails with
+setup instructions if integ.json is absent or malformed.
 """
 
 import subprocess

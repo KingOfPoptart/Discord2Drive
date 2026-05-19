@@ -10,7 +10,10 @@ _INTEG_FILE = Path.home() / "discord2drive" / "integ.json"
 def _load() -> dict | None:
     if not _INTEG_FILE.exists():
         return None
-    return json.loads(_INTEG_FILE.read_text(encoding="utf-8"))
+    try:
+        return json.loads(_INTEG_FILE.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as e:
+        pytest.fail(f"\n\nCould not parse {_INTEG_FILE}: {e}\nCheck the file contains valid JSON.")
 
 
 @pytest.fixture(scope="session")
