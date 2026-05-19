@@ -14,6 +14,15 @@ _THREAD_URL_RE = re.compile(
     r"https?://(?:www\.)?discord(?:app)?\.com/channels/(\d+)/(\d+)"
 )
 
+# Discord custom emoji: <:name:id> or animated <a:name:id> — not meaningful as text
+_CUSTOM_EMOJI_RE = re.compile(r"<a?:[A-Za-z0-9_]+:\d+>")
+# ANSI escape codes used by dice bots in code blocks
+_ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
+# Opening code fence with optional language tag (```ansi, ```py, etc.)
+_CODE_FENCE_OPEN_RE = re.compile(r"```[a-z]*")
+# Markdown links [text](url) — strip the whole thing, they're noise in plain text
+_MARKDOWN_LINK_RE = re.compile(r"\[[^\]]+\]\([^)]+\)")
+
 
 @dataclass
 class Attachment:
@@ -33,6 +42,33 @@ class Message:
 
 class DiscordClientError(Exception):
     pass
+
+
+def _text_from_embeds(embeds: list) -> str:
+    """
+    Extract readable text from Discord embed objects.
+
+    Character/narration bot embeds use description. Dice bot embeds use title + fields.
+    """
+    if not embeds:
+        return ""
+    e = embeds[0]
+    if e.get("description"):
+        return e["description"]
+    parts = []
+    if e.get("title"):
+        parts.append(e["title"])
+    for f in e.get("fields", []):
+        value = f.get("value", "")
+        value = _ANSI_RE.sub("", value)
+        value = _CODE_FENCE_OPEN_RE.sub("", value)  # strip ```lang opening markers
+        value = value.replace("```", "")             # strip bare closing markers
+        value = _MARKDOWN_LINK_RE.sub("", value)
+        value = re.sub(r"[\s|]+", " ", value).strip()
+        if value:
+            name = f.get("name", "")
+            parts.append(f"{name}: {value}" if name else value)
+    return "\n".join(parts)
 
 
 def parse_thread_url(url: str) -> tuple[str, str]:
@@ -108,7 +144,11 @@ def fetch_thread_messages(thread_id: str, bot_token: str) -> list[Message]:
                 else:
                     continue
 
-            if not raw.get("content") and not raw.get("attachments"):
+            content = _CUSTOM_EMOJI_RE.sub("", raw.get("content", "")).strip()
+            if not content:
+                content = _text_from_embeds(raw.get("embeds", []))
+
+            if not content and not raw.get("attachments"):
                 continue
 
             messages.append(
@@ -116,7 +156,7 @@ def fetch_thread_messages(thread_id: str, bot_token: str) -> list[Message]:
                     id=raw["id"],
                     author=raw["author"]["global_name"] or raw["author"]["username"],
                     timestamp=raw["timestamp"],
-                    content=raw.get("content", ""),
+                    content=content,
                     attachments=[
                         Attachment(
                             filename=a["filename"],

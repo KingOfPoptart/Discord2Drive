@@ -174,6 +174,73 @@ def test_fetch_retries_on_429():
     assert msgs[0].content == "hello"
 
 
+def _make_webhook_message(msg_id: str, username: str, embed_description: str) -> dict:
+    return {
+        "id": msg_id,
+        "type": 0,
+        "author": {"username": username, "global_name": None, "bot": True},
+        "timestamp": "2026-05-19T09:14:00.000000+00:00",
+        "content": "",
+        "attachments": [],
+        "embeds": [{"type": "rich", "description": embed_description}],
+        "webhook_id": "999",
+    }
+
+
+def test_fetch_includes_embed_description():
+    raw = [_make_webhook_message("1", "Emilio Lopez", "Emilio steps into the room.")]
+    with patch("discord_client.requests.get", side_effect=_mock_get([raw, []])):
+        msgs = fetch_thread_messages(THREAD_ID, "fake-token")
+    assert len(msgs) == 1
+    assert msgs[0].author == "Emilio Lopez"
+    assert msgs[0].content == "Emilio steps into the room."
+
+
+def test_fetch_includes_dice_embed_fields():
+    raw = [{
+        "id": "1",
+        "type": 0,
+        "author": {"username": "Dice Bot", "global_name": None, "bot": True},
+        "timestamp": "2026-05-19T09:14:00.000000+00:00",
+        "content": "<:dice_pass:123> <:dice_fail:456>",
+        "attachments": [],
+        "embeds": [{
+            "type": "rich",
+            "title": "Pool 5 | Diff 6",
+            "description": None,
+            "fields": [
+                {"name": "Dice", "value": "8, 7, ~~3~~, ~~2~~"},
+                {"name": "Result", "value": "Rolled: 2 Sux\n```ansi\n\x1b[2;32mSuccess\x1b[0m\n```\n[Website](https://example.com)"},
+            ],
+        }],
+        "webhook_id": "888",
+    }]
+    with patch("discord_client.requests.get", side_effect=_mock_get([raw, []])):
+        msgs = fetch_thread_messages(THREAD_ID, "fake-token")
+    assert len(msgs) == 1
+    assert "Pool 5 | Diff 6" in msgs[0].content
+    assert "8, 7, ~~3~~, ~~2~~" in msgs[0].content
+    assert "2 Sux" in msgs[0].content
+    assert "\x1b" not in msgs[0].content
+    assert "ansi" not in msgs[0].content
+
+
+def test_fetch_skips_message_with_only_custom_emoji():
+    raw = [{
+        "id": "1",
+        "type": 0,
+        "author": {"username": "Bot", "global_name": None, "bot": True},
+        "timestamp": "2026-05-19T09:14:00.000000+00:00",
+        "content": "<:dice_pass:123> <:dice_fail:456>",
+        "attachments": [],
+        "embeds": [],
+        "webhook_id": "888",
+    }]
+    with patch("discord_client.requests.get", side_effect=_mock_get([raw, []])):
+        msgs = fetch_thread_messages(THREAD_ID, "fake-token")
+    assert len(msgs) == 0
+
+
 def test_fetch_paginates_when_full_batch():
     """When a batch has 100 messages, it should request the next page."""
     page1 = [_make_raw_message(str(i), "user", f"msg {i}") for i in range(100, 0, -1)]
