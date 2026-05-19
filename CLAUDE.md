@@ -47,7 +47,7 @@ All credentials live in `~/discord2drive/` — never in the project directory.
 
 ## Integration tests
 
-Integration tests require credentials in `~/discord2drive/` and hit real APIs. Tests that need `discord_token` or `google_creds.json` skip when those are absent. Tests that need `integ.json` **fail** with setup instructions — missing integ config is treated as misconfiguration, not an optional skip.
+Integration tests require credentials in `~/discord2drive/` and hit real APIs. If any required file is absent (`discord_token`, `google_creds.json`, `integ.json`), the tests **fail** with a clear message — nothing silently skips. All credential checks live in `conftest.py` as session-scoped fixtures.
 
 - `tests/integration/test_discord_live.py` — fetches the thread in `integ.json`, verifies messages and transcript
 - `tests/integration/test_drive_live.py` — creates `discord2drive-test/` in Drive, uploads, verifies, then **deletes the folder on cleanup**

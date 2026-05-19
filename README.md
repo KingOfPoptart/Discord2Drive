@@ -205,7 +205,7 @@ uv run pytest tests/ --ignore=tests/integration
 uv run pytest tests/
 ```
 
-The integration tests hit the real Discord and Google Drive APIs. Tests that require credential files (`discord_token`, `google_creds.json`) are skipped automatically when those files are absent. Tests that require `integ.json` **fail** with setup instructions if the file is missing — this is intentional so misconfiguration is obvious rather than silent.
+The integration tests hit the real Discord and Google Drive APIs. If any required file is absent — `discord_token`, `google_creds.json`, or `integ.json` — the tests **fail** with a clear message explaining exactly what to create and where. Nothing silently passes or skips.
 
 ### Integration test config
 

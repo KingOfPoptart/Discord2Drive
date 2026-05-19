@@ -1,7 +1,7 @@
 """
 End-to-end integration test: runs the full pipeline via main.py.
-Skipped if discord_token or google_creds.json are absent. Fails with
-setup instructions if integ.json is absent or malformed.
+
+Fails with setup instructions if any required config is absent.
 """
 
 import subprocess
@@ -10,14 +10,7 @@ from pathlib import Path
 
 import pytest
 
-CREDS = Path.home() / "discord2drive" / "google_creds.json"
-TOKEN = Path.home() / "discord2drive" / "discord_token"
 TEST_DRIVE_PATH = "discord2drive-test/e2e"
-
-pytestmark = pytest.mark.skipif(
-    not CREDS.exists() or not TOKEN.exists(),
-    reason="Credentials missing from ~/discord2drive/",
-)
 
 
 def _run(*args: str) -> subprocess.CompletedProcess:
@@ -49,7 +42,7 @@ def test_full_upload(test_thread_url):
     print(result.stdout)
 
 
-def test_invalid_url_exits_cleanly():
+def test_invalid_url_exits_cleanly(discord_token, google_creds_path):
     result = _run("https://example.com/not-discord", "SomeFolder")
     assert result.returncode == 1
     assert "Unrecognised" in result.stderr
