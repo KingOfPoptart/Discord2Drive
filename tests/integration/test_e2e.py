@@ -31,9 +31,9 @@ def _find_folder(service, name: str, parent_id: str) -> str | None:
 
 
 @pytest.fixture(scope="session", autouse=True)
-def cleanup_e2e_folder(google_creds_path, google_token_path):
+def cleanup_e2e_folder(google_client_config, google_token_path):
     yield
-    service = build_service(google_creds_path, google_token_path)
+    service = build_service(google_client_config, google_token_path)
     test_root_id = _find_folder(service, "discord2drive-test", "root")
     if not test_root_id:
         return
@@ -110,12 +110,12 @@ def test_missing_thread_url_exits_with_error():
     assert result.returncode == 2
 
 
-def test_no_destination_exits_with_error(discord_token, google_creds_path):
+def test_no_destination_exits_with_error(discord_token, google_client_config):
     result = _run("https://discord.com/channels/111/222")
     assert result.returncode == 2
 
 
-def test_invalid_url_exits_cleanly(discord_token, google_creds_path):
+def test_invalid_url_exits_cleanly(discord_token, google_client_config):
     result = _run("https://example.com/not-discord", "SomeFolder")
     assert result.returncode == 1
     assert "Unrecognised" in result.stderr

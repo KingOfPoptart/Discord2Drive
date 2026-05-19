@@ -39,34 +39,41 @@ uv run pytest tests/test_formatter.py -v
 
 ## Credentials
 
-All credentials live in `~/discord2drive/` — never in the project directory.
+All credentials live in `~/discord2drive/settings.toml` — never in the project directory.
 
 | File | Contents |
 |---|---|
-| `~/discord2drive/discord_token` | Discord bot token (plain text) |
-| `~/discord2drive/google_creds.json` | OAuth client credentials (from Google Cloud Console) |
-| `~/discord2drive/google_token.json` | OAuth token cache — auto-created on first run |
-| `~/discord2drive/settings.toml` | Optional — Drive root/master names and PC embed color for `--auto-parse-pcs` |
-| `~/discord2drive/integ.json` | Integration test config — test thread URL (see below) |
+| `~/discord2drive/settings.toml` | All configuration — Discord token, Google OAuth credentials, Drive paths, PC color, test thread URL |
+| `~/discord2drive/google_token.json` | OAuth token cache — auto-created on first run, never edit manually |
+
+### settings.toml sections
+
+| Section | Keys | Required |
+|---|---|---|
+| `[discord]` | `token` | Always |
+| `[google]` | `client_id`, `client_secret` | When uploading to Drive |
+| `[drive]` | `root`, `master` | For `--auto-parse-pcs` |
+| `[auto_pc]` | `color` | For `--auto-parse-pcs` |
+| `[test]` | `thread_url` | Integration tests only |
 
 ## Integration tests
 
-Integration tests require credentials in `~/discord2drive/` and hit real APIs. If any required file is absent (`discord_token`, `google_creds.json`, `integ.json`), the tests **fail** with a clear message — nothing silently skips. All credential checks live in `conftest.py` as session-scoped fixtures.
+Integration tests require `~/discord2drive/settings.toml` with all sections populated and hit real APIs. If any required key is absent the tests **fail** with a clear message — nothing silently skips. All credential checks live in `conftest.py` as session-scoped fixtures.
 
-- `tests/integration/test_discord_live.py` — fetches the thread in `integ.json`, verifies messages and transcript
+- `tests/integration/test_discord_live.py` — fetches the thread in `[test] thread_url`, verifies messages and transcript
 - `tests/integration/test_drive_live.py` — creates `discord2drive-test/` in Drive, uploads, verifies, then **deletes the folder on cleanup**
 - `tests/integration/test_e2e.py` — runs the full CLI pipeline; uploads to `discord2drive-test/e2e`
-- `tests/integration/conftest.py` — owns all credential loading; provides `discord_token`, `google_creds_path`, `google_token_path`, `integ_config`, and `test_thread_url` as session-scoped fixtures; fails with setup instructions if any file is missing
+- `tests/integration/conftest.py` — owns all credential loading; provides `discord_token`, `google_client_config`, `google_token_path`, and `test_thread_url` as session-scoped fixtures
 
-### integ.json format
+### [test] thread_url
 
-```json
-{
-  "test_thread_url": "https://discord.com/channels/SERVER_ID/THREAD_ID"
-}
+Add to `settings.toml`:
+```toml
+[test]
+thread_url = "https://discord.com/channels/SERVER_ID/THREAD_ID"
 ```
 
-Create a thread in any server the bot is in, paste a few messages, and drop its URL here. The tests make no assumptions about content — they only assert that messages are returned, a transcript is produced, and the upload succeeds.
+The tests make no assumptions about content — they only assert that messages are returned, a transcript is produced, and the upload succeeds.
 
 ## Discord API notes
 
@@ -106,5 +113,5 @@ Do not use plain `pip` (without `uv`) — it bypasses the lockfile.
 - `uv run discord2drive` only works after `uv pip install -e .` has been run at least once. `uv run python main.py` always works without it.
 - Google OAuth scope must be `drive` (not `drive.file`) — the narrower scope can't see folders the app didn't create, which silently creates duplicates instead of resolving existing paths.
 - The Google Cloud OAuth consent screen must have the user added as a test user or the auth flow will be blocked.
-- When adding a new Google client secret in Cloud Console, the JSON download is only available immediately after clicking **Add secret** — it's not accessible from the credentials list later.
+- When adding a new Google client secret in Cloud Console, the secret value is only shown immediately after clicking **Add secret** — copy it right away into `settings.toml`.
 - Discord's `discordapp.com` domain is a legacy alias for `discord.com` — both are handled by the URL parser.

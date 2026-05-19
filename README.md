@@ -116,7 +116,7 @@ The tool reads Discord threads via a bot. This is a one-time setup.
    - Under **Privileged Gateway Intents**, enable **Server Members Intent** and **Message Content Intent**.
    - Click **Save Changes**.
 
-3. Still on the Bot page, click **Reset Token**, then copy the token that appears. You will need this in the credentials step below. Treat it like a password.
+3. Still on the Bot page, click **Reset Token**, then copy the token that appears. Paste it as `token` under `[discord]` in your `settings.toml`. Treat it like a password.
 
 4. In the left sidebar, click **OAuth2 → URL Generator**.
    - Under **Scopes**, check `bot`.
@@ -146,9 +146,7 @@ The tool uploads files via a Google OAuth app. This is a one-time setup.
    - Application type: **Desktop app**
    - Click **Create**.
 
-5. In the credentials list, click the name of the client ID you just created. In the **Client secrets** section, click **Add secret**. When the new secret appears, click **Download JSON** — this is only available at this moment.
-
-6. Save the downloaded file as described in the credentials section below.
+5. In the credentials list, click the name of the client ID you just created. In the **Client secrets** section, click **Add secret**. When the new secret appears, note the **Client ID** and **Client secret** values — copy them into the `[google]` section of your `settings.toml`.
 
 > **First run:** The first time you run the tool, it will open a browser window asking you to sign in to Google and grant access. After you approve, a token is cached locally and you won't be prompted again.
 
@@ -156,66 +154,45 @@ The tool uploads files via a Google OAuth app. This is a one-time setup.
 
 ### Storing Credentials
 
-Create a `discord2drive` folder in your home directory and place both credential files inside it.
+Create a `discord2drive` folder in your home directory containing a single `settings.toml` file.
 
 **macOS / Linux:** `~/discord2drive/`
-
-```
-~/discord2drive/
-    discord_token           ← paste your Discord bot token here (plain text, no quotes)
-    google_creds.json       ← the JSON file downloaded from Google Cloud Console
-    google_token.json       ← auto-created on first run, do not create manually
-    settings.toml           ← optional; required for --auto-parse-pcs (see below)
-    integ.json              ← integration test config (developers only, see Development section)
-```
-
-To create the folder and token file from the terminal:
-```bash
-mkdir -p ~/discord2drive
-echo "your-bot-token-here" > ~/discord2drive/discord_token
-# then move your downloaded JSON:
-mv ~/Downloads/client_secret_*.json ~/discord2drive/google_creds.json
-```
-
----
 
 **Windows:** `C:\Users\YourName\discord2drive\`
 
 ```
-C:\Users\YourName\discord2drive\
-    discord_token           ← paste your Discord bot token here (plain text, no quotes)
-    google_creds.json       ← the JSON file downloaded from Google Cloud Console
-    google_token.json       ← auto-created on first run, do not create manually
-    settings.toml           ← optional; required for --auto-parse-pcs (see below)
-    integ.json              ← integration test config (developers only, see Development section)
+discord2drive/
+    settings.toml       ← all configuration (see below)
+    google_token.json   ← auto-created on first run, do not create manually
 ```
 
-To create the folder and token file from PowerShell:
-```powershell
-New-Item -ItemType Directory -Path "$HOME\discord2drive" -Force
-"your-bot-token-here" | Out-File -FilePath "$HOME\discord2drive\discord_token" -Encoding utf8
-# then move your downloaded JSON (adjust the filename as needed):
-Move-Item "$HOME\Downloads\client_secret_*.json" "$HOME\discord2drive\google_creds.json"
-```
+### settings.toml
 
----
-
-The file `google_token.json` will be created automatically in the same folder the first time you authorize with Google. You do not need to create it yourself.
-
-### settings.toml (optional)
-
-Required only if you use `--auto-parse-pcs`. Create `~/discord2drive/settings.toml`:
+Create `~/discord2drive/settings.toml` with the following content:
 
 ```toml
-[drive]
-root = "masquerade"   # top-level Drive folder all transcripts live under
-master = "master"     # subfolder name for the full master backup
+[discord]
+token = "your-bot-token"
 
-[auto_pc]
-color = "#4863A0"     # hex embed color that identifies PC characters
+[google]
+client_id = "xxx.apps.googleusercontent.com"
+client_secret = "GOCSPX-..."
+
+[drive]                     # required for --auto-parse-pcs
+root = "masquerade"
+master = "master"
+
+[auto_pc]                   # required for --auto-parse-pcs
+color = "#4863A0"
 ```
 
-The `color` value is the left-border color Discord renders on a character's embed. PCs and NPCs in a thread typically have different colors set by the GM in the character bot. The default `#4863A0` (steel blue) is the color used by the Realm of Darkness 20th server.
+- `[discord] token` — your Discord bot token (from the Bot page in the developer portal)
+- `[google] client_id` / `client_secret` — from the OAuth client you created in Google Cloud Console (see Google Drive setup below)
+- `[drive]` / `[auto_pc]` — only needed if you use `--auto-parse-pcs`
+
+The `color` value is the hex embed color that identifies PC characters in Discord. PCs and NPCs typically have different colors set by the GM in the character bot.
+
+The file `google_token.json` is created automatically the first time you authorize with Google. You do not need to create it yourself.
 
 ---
 
@@ -243,15 +220,14 @@ The integration tests hit the real Discord and Google Drive APIs. If any require
 
 ### Integration test config
 
-The integration tests need a test thread to run against. Create `~/discord2drive/integ.json`:
+The integration tests need a test thread to run against. Add it to `~/discord2drive/settings.toml`:
 
-```json
-{
-  "test_thread_url": "https://discord.com/channels/SERVER_ID/THREAD_ID"
-}
+```toml
+[test]
+thread_url = "https://discord.com/channels/SERVER_ID/THREAD_ID"
 ```
 
-Create any thread in a server where your bot is present, post a few messages in it, then paste its URL here. Right-click the thread in Discord and choose **Copy Link** to get the URL. The tests make no assumptions about the thread's content — they only verify that messages are returned, a transcript is produced, and the upload succeeds.
+Create any thread in a server where your bot is present, post a few messages, then paste its URL here. Right-click the thread in Discord and choose **Copy Link** to get the URL. The tests make no assumptions about the thread's content — they only verify that messages are returned, a transcript is produced, and the upload succeeds.
 
 ### Test layout
 

@@ -1,15 +1,25 @@
-"""Shared fixtures for integration tests. Loads ~/discord2drive/ credentials."""
+"""Shared fixtures for integration tests. Loads ~/discord2drive/settings.toml."""
 
-import json
 import os
+import tomllib
 import pytest
 from pathlib import Path
 
 _CONFIG_DIR = Path.home() / "discord2drive"
-_DISCORD_TOKEN_FILE = _CONFIG_DIR / "discord_token"
-_GOOGLE_CREDS_FILE = _CONFIG_DIR / "google_creds.json"
+_CONFIG_FILE = _CONFIG_DIR / "settings.toml"
 _GOOGLE_TOKEN_FILE = _CONFIG_DIR / "google_token.json"
-_INTEG_FILE = _CONFIG_DIR / "integ.json"
+
+_GOOGLE_AUTH_URI = "https://accounts.google.com/o/oauth2/auth"
+_GOOGLE_TOKEN_URI = "https://oauth2.googleapis.com/token"
+
+
+def _load_settings() -> dict:
+    if not _CONFIG_FILE.exists():
+        pytest.fail(
+            f"\n\nConfig file not found: {_CONFIG_FILE}\n"
+            "Create it — see README for the full format."
+        )
+    return tomllib.loads(_CONFIG_FILE.read_text(encoding="utf-8"))
 
 
 @pytest.fixture(scope="session")
@@ -17,25 +27,36 @@ def discord_token() -> str:
     token = os.environ.get("DISCORD_BOT_TOKEN", "").strip()
     if token:
         return token
-    if not _DISCORD_TOKEN_FILE.exists():
-        pytest.fail(
-            f"\n\nDiscord bot token not found: {_DISCORD_TOKEN_FILE}\n"
-            "Create it containing your bot token, or set the DISCORD_BOT_TOKEN env var."
-        )
-    token = _DISCORD_TOKEN_FILE.read_text(encoding="utf-8").strip()
+    data = _load_settings()
+    token = data.get("discord", {}).get("token", "").strip()
     if not token:
-        pytest.fail(f"\n\n{_DISCORD_TOKEN_FILE} is empty — paste your bot token in it.")
+        pytest.fail(
+            f"\n\n[discord] token missing from {_CONFIG_FILE}\n"
+            "Add:\n  [discord]\n  token = \"your-bot-token\""
+        )
     return token
 
 
 @pytest.fixture(scope="session")
-def google_creds_path() -> Path:
-    if not _GOOGLE_CREDS_FILE.exists():
+def google_client_config(discord_token) -> dict:
+    data = _load_settings()
+    g = data.get("google", {})
+    client_id = g.get("client_id", "").strip()
+    client_secret = g.get("client_secret", "").strip()
+    if not client_id or not client_secret:
         pytest.fail(
-            f"\n\nGoogle credentials not found: {_GOOGLE_CREDS_FILE}\n"
-            "Download the OAuth client JSON from Google Cloud Console and save it there."
+            f"\n\n[google] client_id / client_secret missing from {_CONFIG_FILE}\n"
+            "Add:\n  [google]\n  client_id = \"...\"\n  client_secret = \"...\""
         )
-    return _GOOGLE_CREDS_FILE
+    return {
+        "installed": {
+            "client_id": client_id,
+            "client_secret": client_secret,
+            "auth_uri": _GOOGLE_AUTH_URI,
+            "token_uri": _GOOGLE_TOKEN_URI,
+            "redirect_uris": ["http://localhost"],
+        }
+    }
 
 
 @pytest.fixture(scope="session")
@@ -44,27 +65,13 @@ def google_token_path() -> Path:
 
 
 @pytest.fixture(scope="session")
-def integ_config(discord_token, google_creds_path) -> dict:
-    if not _INTEG_FILE.exists():
-        pytest.fail(
-            f"\n\nIntegration config not found: {_INTEG_FILE}\n"
-            "Create it with the URL of a thread your bot can access:\n\n"
-            '  {\n    "test_thread_url": "https://discord.com/channels/SERVER_ID/THREAD_ID"\n  }\n\n'
-            "Right-click any thread in Discord → Copy Link to get the URL."
-        )
-    try:
-        return json.loads(_INTEG_FILE.read_text(encoding="utf-8"))
-    except json.JSONDecodeError as e:
-        pytest.fail(f"\n\nCould not parse {_INTEG_FILE}: {e}\nCheck the file contains valid JSON.")
-
-
-@pytest.fixture(scope="session")
-def test_thread_url(integ_config) -> str:
-    url = integ_config.get("test_thread_url", "").strip()
+def test_thread_url(discord_token, google_client_config) -> str:
+    data = _load_settings()
+    url = data.get("test", {}).get("thread_url", "").strip()
     if not url:
         pytest.fail(
-            f"\n\n'test_thread_url' key missing from {_INTEG_FILE}\n"
-            "Add it:\n\n"
-            '  {\n    "test_thread_url": "https://discord.com/channels/SERVER_ID/THREAD_ID"\n  }'
+            f"\n\n[test] thread_url missing from {_CONFIG_FILE}\n"
+            "Add:\n  [test]\n  thread_url = \"https://discord.com/channels/SERVER_ID/THREAD_ID\"\n\n"
+            "Right-click any thread in Discord → Copy Link to get the URL."
         )
     return url

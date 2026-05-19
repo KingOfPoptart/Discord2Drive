@@ -1,20 +1,23 @@
 """
-Loads and validates configuration from ~/discord2drive/.
+Loads and validates configuration from ~/discord2drive/settings.toml.
 
-Config directory layout:
-    ~/discord2drive/
-        discord_token       plain text, just the bot token
-        google_creds.json   OAuth client credentials (from Google Cloud Console)
-        google_token.json   OAuth token cache (auto-created on first run)
-        settings.toml       optional — required for --auto-parse-pcs
+settings.toml layout:
+    [discord]
+    token = "your-bot-token"
 
-settings.toml format:
-    [drive]
+    [google]
+    client_id = "xxx.apps.googleusercontent.com"
+    client_secret = "GOCSPX-..."
+
+    [drive]                     # required for --auto-parse-pcs
     root = "masquerade"
     master = "master"
 
-    [auto_pc]
+    [auto_pc]                   # required for --auto-parse-pcs
     color = "#4863A0"
+
+    [test]                      # optional — only needed for integration tests
+    thread_url = "https://discord.com/channels/SERVER_ID/THREAD_ID"
 """
 
 from __future__ import annotations
@@ -26,10 +29,11 @@ from pathlib import Path
 
 CONFIG_DIR = Path.home() / "discord2drive"
 
-_DISCORD_TOKEN_FILE = CONFIG_DIR / "discord_token"
-_GOOGLE_CREDS_FILE = CONFIG_DIR / "google_creds.json"
+_CONFIG_FILE = CONFIG_DIR / "settings.toml"
 _GOOGLE_TOKEN_FILE = CONFIG_DIR / "google_token.json"
-_SETTINGS_FILE = CONFIG_DIR / "settings.toml"
+
+_GOOGLE_AUTH_URI = "https://accounts.google.com/o/oauth2/auth"
+_GOOGLE_TOKEN_URI = "https://oauth2.googleapis.com/token"
 
 
 class ConfigError(Exception):
@@ -46,58 +50,82 @@ class AutoPcConfig:
 @dataclass(frozen=True)
 class Config:
     discord_token: str
-    google_creds_file: Path | None
+    google_client_config: dict | None  # passed directly to InstalledAppFlow.from_client_config
     google_token_file: Path
     auto_pc: AutoPcConfig | None = None
 
 
-def _load_auto_pc_config(settings_file: Path) -> AutoPcConfig | None:
-    if not settings_file.exists():
-        return None
-    try:
-        data = tomllib.loads(settings_file.read_text(encoding="utf-8"))
-    except tomllib.TOMLDecodeError as e:
-        raise ConfigError(f"Invalid TOML in {settings_file}: {e}") from e
-    drive = data.get("drive", {})
-    apc = data.get("auto_pc", {})
-    if not drive or not apc:
-        return None
-    try:
-        return AutoPcConfig(
-            drive_root=drive["root"],
-            master_dir=drive["master"],
-            pc_color=apc["color"],
+def _read_toml(path: Path) -> dict:
+    if not path.exists():
+        raise ConfigError(
+            f"Config file not found: {path}\n"
+            "Create it — see README for the full format."
         )
-    except KeyError as e:
-        raise ConfigError(f"settings.toml is missing required key: {e}") from e
+    try:
+        return tomllib.loads(path.read_text(encoding="utf-8"))
+    except tomllib.TOMLDecodeError as e:
+        raise ConfigError(f"Invalid TOML in {path}: {e}") from e
+
+
+def _build_google_client_config(client_id: str, client_secret: str) -> dict:
+    return {
+        "installed": {
+            "client_id": client_id,
+            "client_secret": client_secret,
+            "auth_uri": _GOOGLE_AUTH_URI,
+            "token_uri": _GOOGLE_TOKEN_URI,
+            "redirect_uris": ["http://localhost"],
+        }
+    }
 
 
 def load(require_google: bool = True, require_auto_pc: bool = False) -> Config:
     """
-    Read configuration from ~/discord2drive/.
+    Read configuration from ~/discord2drive/settings.toml.
     Raises ConfigError with a clear message if anything is missing.
-    Pass require_google=False to skip Google credential validation (e.g. for --dry-run).
-    Pass require_auto_pc=True to require settings.toml with [drive] and [auto_pc] sections.
     """
+    data = _read_toml(_CONFIG_FILE)
     errors: list[str] = []
 
-    if not _DISCORD_TOKEN_FILE.exists():
+    token = data.get("discord", {}).get("token", "").strip()
+    if not token:
         errors.append(
-            f"Discord token not found. Create {_DISCORD_TOKEN_FILE} "
-            "containing your bot token."
+            f"[discord] token missing from {_CONFIG_FILE}. Add:\n"
+            "    [discord]\n"
+            "    token = \"your-bot-token\""
         )
 
-    if require_google and not _GOOGLE_CREDS_FILE.exists():
+    google_section = data.get("google", {})
+    client_id = google_section.get("client_id", "").strip()
+    client_secret = google_section.get("client_secret", "").strip()
+    google_client_config: dict | None = None
+
+    if client_id and client_secret:
+        google_client_config = _build_google_client_config(client_id, client_secret)
+    elif require_google:
         errors.append(
-            f"Google credentials not found. Download your OAuth client JSON "
-            f"from Google Cloud Console and save it to {_GOOGLE_CREDS_FILE}"
+            f"[google] client_id and client_secret missing from {_CONFIG_FILE}. Add:\n"
+            "    [google]\n"
+            "    client_id = \"xxx.apps.googleusercontent.com\"\n"
+            "    client_secret = \"GOCSPX-...\""
         )
 
-    auto_pc = _load_auto_pc_config(_SETTINGS_FILE)
+    drive = data.get("drive", {})
+    apc = data.get("auto_pc", {})
+    auto_pc: AutoPcConfig | None = None
+    if drive and apc:
+        try:
+            auto_pc = AutoPcConfig(
+                drive_root=drive["root"],
+                master_dir=drive["master"],
+                pc_color=apc["color"],
+            )
+        except KeyError as e:
+            errors.append(f"settings.toml missing required key: {e}")
 
     if require_auto_pc and auto_pc is None:
         errors.append(
-            f"--auto-parse-pcs requires {_SETTINGS_FILE}. Create it with:\n"
+            f"--auto-parse-pcs requires [drive] and [auto_pc] sections in {_CONFIG_FILE}:\n"
             "    [drive]\n"
             "    root = \"your-root-folder\"\n"
             "    master = \"master\"\n\n"
@@ -110,15 +138,9 @@ def load(require_google: bool = True, require_auto_pc: bool = False) -> Config:
             "Missing configuration:\n" + "\n".join(f"  • {e}" for e in errors)
         )
 
-    token = _DISCORD_TOKEN_FILE.read_text(encoding="utf-8").strip()
-    if not token:
-        raise ConfigError(f"{_DISCORD_TOKEN_FILE} is empty — paste your bot token in it.")
-
-    google_creds = _GOOGLE_CREDS_FILE if _GOOGLE_CREDS_FILE.exists() else None
-
     return Config(
         discord_token=token,
-        google_creds_file=google_creds,
+        google_client_config=google_client_config,
         google_token_file=_GOOGLE_TOKEN_FILE,
         auto_pc=auto_pc,
     )

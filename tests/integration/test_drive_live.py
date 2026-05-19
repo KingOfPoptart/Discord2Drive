@@ -16,8 +16,8 @@ TEST_CONTENT = "# Test Thread\n\n**TestUser** — 2026-05-19 12:00 UTC\nThis is 
 
 
 @pytest.fixture(scope="module")
-def service(google_creds_path, google_token_path):
-    return build_service(google_creds_path, google_token_path)
+def service(google_client_config, google_token_path):
+    return build_service(google_client_config, google_token_path)
 
 
 @pytest.fixture(scope="module")

@@ -111,7 +111,7 @@ def main() -> None:
 
     print("Connecting to Google Drive ...")
     try:
-        service = drive_client.build_service(cfg.google_creds_file, cfg.google_token_file)
+        service = drive_client.build_service(cfg.google_client_config, cfg.google_token_file)
     except drive_client.DriveClientError as e:
         print(f"Google Drive error: {e}", file=sys.stderr)
         sys.exit(1)

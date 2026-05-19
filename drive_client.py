@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import io
-from pathlib import Path
 from typing import Optional
 
 from google.auth.transport.requests import Request
@@ -23,7 +22,7 @@ class DriveClientError(Exception):
     pass
 
 
-def _authenticate(credentials_file: Path, token_cache: Path) -> Credentials:
+def _authenticate(client_config: dict, token_cache: Path) -> Credentials:
     """
     Return valid OAuth2 credentials, refreshing or re-authorising as needed.
     On first run this opens a browser tab to complete the OAuth flow.
@@ -38,14 +37,7 @@ def _authenticate(credentials_file: Path, token_cache: Path) -> Credentials:
         if creds and creds.expired and creds.refresh_token:
             creds.refresh(Request())
         else:
-            if not credentials_file.exists():
-                raise DriveClientError(
-                    f"Google credentials file not found: {credentials_file}\n"
-                    "Download it from Google Cloud Console → APIs & Services → Credentials."
-                )
-            flow = InstalledAppFlow.from_client_secrets_file(
-                str(credentials_file), SCOPES
-            )
+            flow = InstalledAppFlow.from_client_config(client_config, SCOPES)
             creds = flow.run_local_server(port=0)
 
         token_cache.write_text(creds.to_json(), encoding="utf-8")
@@ -163,9 +155,9 @@ def upload_file(
     return file.get("webViewLink", f"https://drive.google.com/file/d/{file['id']}/view")
 
 
-def build_service(credentials_file: Path, token_cache: Path):
+def build_service(client_config: dict, token_cache: Path):
     """Authenticate and return a Drive API service object."""
-    creds = _authenticate(credentials_file, token_cache)
+    creds = _authenticate(client_config, token_cache)
     try:
         return build("drive", "v3", credentials=creds)
     except HttpError as e:
