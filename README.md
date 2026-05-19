@@ -201,7 +201,19 @@ uv run pytest tests/ --ignore=tests/integration
 uv run pytest tests/
 ```
 
-The integration tests hit the real Discord and Google Drive APIs. They are skipped automatically if the credential files are not present, so the unit tests always run cleanly without any setup.
+The integration tests hit the real Discord and Google Drive APIs. They are skipped automatically if any required file is absent, so the unit tests always run cleanly without any setup.
+
+### Integration test config
+
+The integration tests need a test thread to run against. Create `~/discord2drive/integ.json`:
+
+```json
+{
+  "test_thread_url": "https://discord.com/channels/SERVER_ID/THREAD_ID"
+}
+```
+
+Create any thread in a server where your bot is present, post a few messages in it, then paste its URL here. Right-click the thread in Discord and choose **Copy Link** to get the URL. The tests make no assumptions about the thread's content — they only verify that messages are returned, a transcript is produced, and the upload succeeds.
 
 ### Test layout
 
@@ -212,7 +224,8 @@ tests/
     test_drive_client.py         # folder resolution and file upload (mocked)
     test_formatter.py            # transcript formatting (pure, no I/O)
     integration/
-        test_discord_live.py     # fetches a real Discord thread
+        conftest.py              # loads integ.json, provides test_thread_url fixture
+        test_discord_live.py     # fetches the test thread from integ.json
         test_drive_live.py       # creates a folder, uploads, and cleans up
         test_e2e.py              # runs the full pipeline via the CLI
 ```

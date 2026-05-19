@@ -43,14 +43,26 @@ All credentials live in `~/discord2drive/` — never in the project directory.
 | `~/discord2drive/discord_token` | Discord bot token (plain text) |
 | `~/discord2drive/google_creds.json` | OAuth client credentials (from Google Cloud Console) |
 | `~/discord2drive/google_token.json` | OAuth token cache — auto-created on first run |
+| `~/discord2drive/integ.json` | Integration test config — test thread URL (see below) |
 
 ## Integration tests
 
-Integration tests require credentials in `~/discord2drive/` and hit real APIs. They are skipped automatically when credentials are absent.
+Integration tests require credentials in `~/discord2drive/` and hit real APIs. They are skipped automatically when any required file is absent.
 
-- `tests/integration/test_discord_live.py` — fetches the test thread (`1506288385826885632` in server `1309606609080811531`)
+- `tests/integration/test_discord_live.py` — fetches the thread in `integ.json`, verifies messages and transcript
 - `tests/integration/test_drive_live.py` — creates `discord2drive-test/` in Drive, uploads, verifies, then **deletes the folder on cleanup**
 - `tests/integration/test_e2e.py` — runs the full CLI pipeline; uploads to `discord2drive-test/e2e`
+- `tests/integration/conftest.py` — loads `integ.json` and provides `test_thread_url` as a session-scoped fixture
+
+### integ.json format
+
+```json
+{
+  "test_thread_url": "https://discord.com/channels/SERVER_ID/THREAD_ID"
+}
+```
+
+Create a thread in any server the bot is in, paste a few messages, and drop its URL here. The tests make no assumptions about content — they only assert that messages are returned, a transcript is produced, and the upload succeeds.
 
 ## Discord API notes
 

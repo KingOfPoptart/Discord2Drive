@@ -1,6 +1,6 @@
 """
 End-to-end integration test: runs the full pipeline via main.py.
-Skipped if either credential file is missing.
+Skipped if credential files or integ.json are missing.
 """
 
 import subprocess
@@ -11,7 +11,6 @@ import pytest
 
 CREDS = Path.home() / "discord2drive" / "google_creds.json"
 TOKEN = Path.home() / "discord2drive" / "discord_token"
-TEST_THREAD = "https://discordapp.com/channels/1309606609080811531/1506288385826885632"
 TEST_DRIVE_PATH = "discord2drive-test/e2e"
 
 pytestmark = pytest.mark.skipif(
@@ -29,21 +28,20 @@ def _run(*args: str) -> subprocess.CompletedProcess:
     )
 
 
-def test_dry_run_prints_transcript():
-    result = _run(TEST_THREAD, "SomeFolder", "--dry-run")
+def test_dry_run_prints_transcript(test_thread_url):
+    result = _run(test_thread_url, "SomeFolder", "--dry-run")
     assert result.returncode == 0
-    assert "thread name" in result.stdout
-    assert "KingOfPoptart" in result.stdout
-    assert "this is a thread" in result.stdout
+    assert "# " in result.stdout       # markdown heading present
+    assert "**" in result.stdout       # at least one attributed message
 
 
-def test_dry_run_does_not_require_drive_path_to_be_valid():
-    result = _run(TEST_THREAD, "NonExistentFolder", "--dry-run")
+def test_dry_run_does_not_require_drive_path_to_be_valid(test_thread_url):
+    result = _run(test_thread_url, "NonExistentFolder", "--dry-run")
     assert result.returncode == 0
 
 
-def test_full_upload():
-    result = _run(TEST_THREAD, TEST_DRIVE_PATH)
+def test_full_upload(test_thread_url):
+    result = _run(test_thread_url, TEST_DRIVE_PATH)
     assert result.returncode == 0
     assert "Done:" in result.stdout
     assert "drive.google.com" in result.stdout

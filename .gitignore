@@ -23,6 +23,7 @@ htmlcov/
 discord_token
 google_token.json
 google_creds.json
+integ.json
 *secret*.json
 *_creds.json
 .env

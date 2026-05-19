@@ -1,8 +1,8 @@
 """
-Integration test: hits the real Discord API against the known test thread.
+Integration test: hits the real Discord API against the test thread
+defined in ~/discord2drive/integ.json.
 
-Skipped automatically if DISCORD_BOT_TOKEN is not set or ~/.sceneexporterauthtoken
-is not present.
+Skipped automatically if discord_token or integ.json are absent.
 """
 
 import os
@@ -11,10 +11,6 @@ from pathlib import Path
 
 from discord_client import fetch_thread_messages, fetch_thread_info, parse_thread_url
 from formatter import format_transcript, make_filename
-
-TEST_THREAD_URL = (
-    "https://discordapp.com/channels/1309606609080811531/1506288385826885632"
-)
 
 
 def _get_token() -> str | None:
@@ -31,34 +27,37 @@ TOKEN = _get_token()
 
 pytestmark = pytest.mark.skipif(
     TOKEN is None,
-    reason="No Discord bot token found — set DISCORD_BOT_TOKEN or create ~/.sceneexporterauthtoken",
+    reason="No Discord bot token found — create ~/discord2drive/discord_token",
 )
 
 
-def test_parse_test_thread_url():
-    server_id, thread_id = parse_thread_url(TEST_THREAD_URL)
-    assert server_id == "1309606609080811531"
-    assert thread_id == "1506288385826885632"
+def test_parse_test_thread_url(test_thread_url):
+    server_id, thread_id = parse_thread_url(test_thread_url)
+    assert server_id.isdigit()
+    assert thread_id.isdigit()
 
 
-def test_fetch_thread_info():
-    info = fetch_thread_info("1506288385826885632", TOKEN)
+def test_fetch_thread_info(test_thread_url):
+    _, thread_id = parse_thread_url(test_thread_url)
+    info = fetch_thread_info(thread_id, TOKEN)
     assert "name" in info
     print(f"\nThread name: {info['name']}")
     print(f"Thread type: {info.get('type')}")
 
 
-def test_fetch_messages_returns_results():
-    messages = fetch_thread_messages("1506288385826885632", TOKEN)
+def test_fetch_messages_returns_results(test_thread_url):
+    _, thread_id = parse_thread_url(test_thread_url)
+    messages = fetch_thread_messages(thread_id, TOKEN)
     assert len(messages) > 0, "Expected at least one message in the test thread"
     print(f"\nFetched {len(messages)} messages")
     for msg in messages[:3]:
         print(f"  [{msg.timestamp}] {msg.author}: {msg.content[:60]!r}")
 
 
-def test_full_pipeline_produces_transcript():
-    info = fetch_thread_info("1506288385826885632", TOKEN)
-    messages = fetch_thread_messages("1506288385826885632", TOKEN)
+def test_full_pipeline_produces_transcript(test_thread_url):
+    _, thread_id = parse_thread_url(test_thread_url)
+    info = fetch_thread_info(thread_id, TOKEN)
+    messages = fetch_thread_messages(thread_id, TOKEN)
 
     thread_name = info.get("name", "Unknown Thread")
     transcript = format_transcript(thread_name, messages)
