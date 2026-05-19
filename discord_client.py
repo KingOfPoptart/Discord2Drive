@@ -5,7 +5,6 @@ import time
 import requests
 import requests.exceptions
 from dataclasses import dataclass, field
-from typing import Optional
 
 DISCORD_API = "https://discord.com/api/v10"
 
@@ -30,7 +29,7 @@ _MENTION_RE = re.compile(r"<@!?(\d+)>")
 class Attachment:
     filename: str
     url: str
-    content_type: Optional[str] = None
+    content_type: str | None = None
 
 
 @dataclass
@@ -169,7 +168,7 @@ def fetch_thread_messages(thread_id: str, bot_token: str) -> list[Message]:
             messages.append(
                 Message(
                     id=raw["id"],
-                    author=raw["author"]["global_name"] or raw["author"]["username"],
+                    author=raw["author"].get("global_name") or raw["author"]["username"],
                     timestamp=raw["timestamp"],
                     content=content,
                     embed_color=embed_color,

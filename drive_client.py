@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import io
-from typing import Optional
+from pathlib import Path
 
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
@@ -28,7 +28,7 @@ def _authenticate(client_config: dict, token_cache: Path) -> Credentials:
     On first run this opens a browser tab to complete the OAuth flow.
     The resulting token is cached at token_cache for subsequent runs.
     """
-    creds: Optional[Credentials] = None
+    creds: Credentials | None = None
 
     if token_cache.exists():
         creds = Credentials.from_authorized_user_file(str(token_cache), SCOPES)

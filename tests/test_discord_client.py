@@ -106,6 +106,58 @@ def test_fetch_uses_global_name_over_username():
     assert msgs[0].author == "Display Name"
 
 
+def test_fetch_falls_back_to_username_when_global_name_is_none():
+    raw = [{
+        "id": "1",
+        "author": {"username": "old_handle", "global_name": None},
+        "timestamp": "2026-05-19T09:00:00.000000+00:00",
+        "content": "hi",
+        "attachments": [],
+    }]
+    with patch("discord_client.requests.get", side_effect=_mock_get([raw, []])):
+        msgs = fetch_thread_messages(THREAD_ID, "fake-token")
+    assert msgs[0].author == "old_handle"
+
+
+def test_fetch_thread_starter_message_type_21():
+    raw = [{
+        "id": "99",
+        "type": 21,
+        "author": {"username": "system", "global_name": None},
+        "timestamp": "2026-05-19T09:00:00.000000+00:00",
+        "content": "",
+        "attachments": [],
+        "referenced_message": {
+            "id": "1",
+            "author": {"username": "alice", "global_name": "Alice"},
+            "timestamp": "2026-05-19T09:00:00.000000+00:00",
+            "content": "Thread opener message",
+            "attachments": [],
+            "embeds": [],
+            "mentions": [],
+        },
+    }]
+    with patch("discord_client.requests.get", side_effect=_mock_get([raw, []])):
+        msgs = fetch_thread_messages(THREAD_ID, "fake-token")
+    assert len(msgs) == 1
+    assert msgs[0].author == "Alice"
+    assert msgs[0].content == "Thread opener message"
+
+
+def test_fetch_skips_type_21_with_no_referenced_message():
+    raw = [{
+        "id": "99",
+        "type": 21,
+        "author": {"username": "system", "global_name": None},
+        "timestamp": "2026-05-19T09:00:00.000000+00:00",
+        "content": "",
+        "attachments": [],
+    }]
+    with patch("discord_client.requests.get", side_effect=_mock_get([raw, []])):
+        msgs = fetch_thread_messages(THREAD_ID, "fake-token")
+    assert len(msgs) == 0
+
+
 def test_fetch_handles_attachments():
     raw = [{
         "id": "1",
@@ -240,6 +292,22 @@ def test_fetch_resolves_user_mentions():
     with patch("discord_client.requests.get", side_effect=_mock_get([raw, []])):
         msgs = fetch_thread_messages(THREAD_ID, "fake-token")
     assert msgs[0].content == "Hey @Bob, what's up?"
+
+
+def test_fetch_resolves_mention_when_global_name_is_none():
+    raw = [{
+        "id": "1",
+        "type": 0,
+        "author": {"username": "alice", "global_name": "Alice"},
+        "timestamp": "2026-05-19T09:00:00.000000+00:00",
+        "content": "Hey <@123456789>!",
+        "attachments": [],
+        "embeds": [],
+        "mentions": [{"id": "123456789", "username": "bob_handle", "global_name": None}],
+    }]
+    with patch("discord_client.requests.get", side_effect=_mock_get([raw, []])):
+        msgs = fetch_thread_messages(THREAD_ID, "fake-token")
+    assert msgs[0].content == "Hey @bob_handle!"
 
 
 def test_fetch_falls_back_to_id_for_unresolved_mention():

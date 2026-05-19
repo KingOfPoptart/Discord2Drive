@@ -121,7 +121,7 @@ def load(require_google: bool = True, require_auto_pc: bool = False) -> Config:
                 pc_color=apc["color"],
             )
         except KeyError as e:
-            errors.append(f"settings.toml missing required key: {e}")
+            errors.append(f"settings.toml missing required key: {e.args[0]}")
 
     if require_auto_pc and auto_pc is None:
         errors.append(
