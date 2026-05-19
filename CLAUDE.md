@@ -66,7 +66,23 @@ Integration tests require credentials in `~/discord2drive/` and hit real APIs. T
 - `resolve_drive_path` walks a slash-separated path, creating any missing folders
 - `upload_file` checks for an existing file with the same name in the target folder and updates it rather than creating a duplicate
 
+## After changing pyproject.toml
+
+If you add or remove modules from `[tool.setuptools] py-modules`, re-run the editable install or the `discord2drive` command won't reflect the change:
+
+```bash
+uv pip install -e .
+```
+
 ## Dependencies
 
 Managed by `uv`. To add a package: `uv add <package>`. To install everything: `uv sync`.
 Do not use `pip` directly — it bypasses the lockfile.
+
+## Known gotchas
+
+- `uv run discord2drive` only works after `uv pip install -e .` has been run at least once. `uv run python main.py` always works without it.
+- Google OAuth scope must be `drive` (not `drive.file`) — the narrower scope can't see folders the app didn't create, which silently creates duplicates instead of resolving existing paths.
+- The Google Cloud OAuth consent screen must have the user added as a test user or the auth flow will be blocked.
+- When adding a new Google client secret in Cloud Console, the JSON download is only available immediately after clicking **Add secret** — it's not accessible from the credentials list later.
+- Discord's `discordapp.com` domain is a legacy alias for `discord.com` — both are handled by the URL parser.
