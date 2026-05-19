@@ -1,13 +1,13 @@
 # Discord2Drive
 
-Export Discord thread transcripts to Google Drive. Point it at a thread URL and one or more Drive folder paths — it fetches every message, formats them into a readable markdown document, and uploads it. Folders are created automatically if they don't exist. Running it again on the same thread overwrites the file rather than creating a duplicate.
+Export Discord thread transcripts to Google Drive. Point it at a thread URL and one or more Drive folder paths — it fetches every message, formats them into a readable markdown document, and uploads it. You can also save locally with `--output-local`, or just preview with `--dry-run`. Folders are created automatically if they don't exist. Running it again on the same thread overwrites the file rather than creating a duplicate.
 
 ---
 
 ## Usage
 
 ```bash
-uv run discord2drive <thread_url> <drive_path> [drive_path ...]
+uv run discord2drive <thread_url> [drive_path ...] [--dry-run] [--output-local <dir>]
 ```
 
 ### Examples
@@ -31,11 +31,17 @@ Preview the transcript without uploading anything:
 ```bash
 uv run discord2drive \
   "https://discord.com/channels/1234567890/9876543210" \
-  "Scenes/Master" \
   --dry-run
 ```
 
-Save the transcript to a local folder (in addition to uploading to Drive):
+Save the transcript to a local directory only (no Drive upload):
+```bash
+uv run discord2drive \
+  "https://discord.com/channels/1234567890/9876543210" \
+  --output-local ~/transcripts
+```
+
+Save locally and upload to Drive at the same time:
 ```bash
 uv run discord2drive \
   "https://discord.com/channels/1234567890/9876543210" \
