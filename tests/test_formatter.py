@@ -59,6 +59,12 @@ def test_transcript_timestamps_formatted():
     assert "2026-05-19 09:15 UTC" in out
 
 
+def test_transcript_message_format():
+    out = format_transcript("Scene", SAMPLE_MESSAGES)
+    assert "**ChrisWriter** [2026-05-19 09:14 UTC]:" in out
+    assert "**MattWriter** [2026-05-19 09:15 UTC]:" in out
+
+
 def test_transcript_attachment_rendered():
     out = format_transcript("Scene", SAMPLE_MESSAGES)
     assert "scene-notes.png" in out

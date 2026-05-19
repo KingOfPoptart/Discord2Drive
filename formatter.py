@@ -38,14 +38,13 @@ def format_transcript(thread_name: str, messages: list[Message]) -> str:
 
     for msg in messages:
         ts = _format_timestamp(msg.timestamp)
-        lines.append(f"**{msg.author}** — {ts}")
+        prefix = f"**{msg.author}** [{ts}]:"
+        content_parts = []
         if msg.content:
-            lines.append(msg.content)
+            content_parts.append(msg.content)
         for att in msg.attachments:
-            lines.append(f"*[Attachment: {att.filename}]({att.url})*")
-        lines.append("")
-        lines.append("---")
-        lines.append("")
+            content_parts.append(f"*[Attachment: {att.filename}]({att.url})*")
+        lines.append(f"{prefix} " + "\n".join(content_parts) if content_parts else prefix)
 
     return "\n".join(lines)
 

@@ -22,6 +22,8 @@ _ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
 _CODE_FENCE_OPEN_RE = re.compile(r"```[a-z]*")
 # Markdown links [text](url) — strip the whole thing, they're noise in plain text
 _MARKDOWN_LINK_RE = re.compile(r"\[[^\]]+\]\([^)]+\)")
+# Discord user/member mentions: <@USER_ID> or <@!USER_ID>
+_MENTION_RE = re.compile(r"<@!?(\d+)>")
 
 
 @dataclass
@@ -42,6 +44,14 @@ class Message:
 
 class DiscordClientError(Exception):
     pass
+
+
+def _resolve_mentions(content: str, mentions: list) -> str:
+    """Replace <@USER_ID> with @DisplayName using the message's mentions array."""
+    if "<@" not in content:
+        return content
+    lookup = {m["id"]: m.get("global_name") or m["username"] for m in mentions}
+    return _MENTION_RE.sub(lambda m: f"@{lookup.get(m.group(1), m.group(1))}", content)
 
 
 def _text_from_embeds(embeds: list) -> str:
@@ -147,6 +157,7 @@ def fetch_thread_messages(thread_id: str, bot_token: str) -> list[Message]:
             content = _CUSTOM_EMOJI_RE.sub("", raw.get("content", "")).strip()
             if not content:
                 content = _text_from_embeds(raw.get("embeds", []))
+            content = _resolve_mentions(content, raw.get("mentions", []))
 
             if not content and not raw.get("attachments"):
                 continue

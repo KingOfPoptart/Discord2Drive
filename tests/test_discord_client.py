@@ -225,6 +225,38 @@ def test_fetch_includes_dice_embed_fields():
     assert "ansi" not in msgs[0].content
 
 
+def test_fetch_resolves_user_mentions():
+    raw = [{
+        "id": "1",
+        "type": 0,
+        "author": {"username": "alice", "global_name": "Alice"},
+        "timestamp": "2026-05-19T09:00:00.000000+00:00",
+        "content": "Hey <@123456789>, what's up?",
+        "attachments": [],
+        "embeds": [],
+        "mentions": [{"id": "123456789", "username": "bob", "global_name": "Bob"}],
+    }]
+    with patch("discord_client.requests.get", side_effect=_mock_get([raw, []])):
+        msgs = fetch_thread_messages(THREAD_ID, "fake-token")
+    assert msgs[0].content == "Hey @Bob, what's up?"
+
+
+def test_fetch_falls_back_to_id_for_unresolved_mention():
+    raw = [{
+        "id": "1",
+        "type": 0,
+        "author": {"username": "alice", "global_name": "Alice"},
+        "timestamp": "2026-05-19T09:00:00.000000+00:00",
+        "content": "Hey <@999>!",
+        "attachments": [],
+        "embeds": [],
+        "mentions": [],
+    }]
+    with patch("discord_client.requests.get", side_effect=_mock_get([raw, []])):
+        msgs = fetch_thread_messages(THREAD_ID, "fake-token")
+    assert msgs[0].content == "Hey @999!"
+
+
 def test_fetch_skips_message_with_only_custom_emoji():
     raw = [{
         "id": "1",
