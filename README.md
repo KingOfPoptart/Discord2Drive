@@ -7,7 +7,7 @@ Export Discord thread transcripts to Google Drive. Point it at a thread URL and 
 ## Usage
 
 ```bash
-uv run discord2drive <thread_url> [drive_path ...] [--dry-run] [--output-local <dir>]
+uv run discord2drive <thread_url> [drive_path ...] [--dry-run] [--output-local <dir>] [--auto-parse-pcs]
 ```
 
 ### Examples
@@ -26,6 +26,15 @@ uv run discord2drive \
   "Scenes/Master" \
   "Scenes/Characters/Elara"
 ```
+
+Auto-detect PC characters and upload to their folders automatically (requires `settings.toml` — see [Storing Credentials](#storing-credentials)):
+```bash
+uv run discord2drive \
+  "https://discord.com/channels/1234567890/9876543210" \
+  --auto-parse-pcs
+```
+
+This detects which characters in the thread are PCs (by their embed color), then uploads the transcript to `root/master` and to a folder for each PC — e.g. `masquerade/master`, `masquerade/Emilio Lopez`, `masquerade/Eva Kozlov`.
 
 Preview the transcript without uploading anything:
 ```bash
@@ -61,15 +70,9 @@ Each thread is saved as a markdown file named `{thread-name}_{date}.md`:
 
 ---
 
-**ChrisWriter** — 2026-05-19 09:14 UTC
-Elara moved through the stalls without looking at him.
+**ChrisWriter** [2026-05-19 09:14 UTC]: Elara moved through the stalls without looking at him.
 
----
-
-**MattWriter** — 2026-05-19 09:15 UTC
-Davan caught her sleeve. "You knew, didn't you."
-
----
+**MattWriter** [2026-05-19 09:15 UTC]: Davan caught her sleeve. "You knew, didn't you."
 ```
 
 ---
@@ -162,6 +165,7 @@ Create a `discord2drive` folder in your home directory and place both credential
     discord_token           ← paste your Discord bot token here (plain text, no quotes)
     google_creds.json       ← the JSON file downloaded from Google Cloud Console
     google_token.json       ← auto-created on first run, do not create manually
+    settings.toml           ← optional; required for --auto-parse-pcs (see below)
     integ.json              ← integration test config (developers only, see Development section)
 ```
 
@@ -182,6 +186,7 @@ C:\Users\YourName\discord2drive\
     discord_token           ← paste your Discord bot token here (plain text, no quotes)
     google_creds.json       ← the JSON file downloaded from Google Cloud Console
     google_token.json       ← auto-created on first run, do not create manually
+    settings.toml           ← optional; required for --auto-parse-pcs (see below)
     integ.json              ← integration test config (developers only, see Development section)
 ```
 
@@ -196,6 +201,21 @@ Move-Item "$HOME\Downloads\client_secret_*.json" "$HOME\discord2drive\google_cre
 ---
 
 The file `google_token.json` will be created automatically in the same folder the first time you authorize with Google. You do not need to create it yourself.
+
+### settings.toml (optional)
+
+Required only if you use `--auto-parse-pcs`. Create `~/discord2drive/settings.toml`:
+
+```toml
+[drive]
+root = "masquerade"   # top-level Drive folder all transcripts live under
+master = "master"     # subfolder name for the full master backup
+
+[auto_pc]
+color = "#4863A0"     # hex embed color that identifies PC characters
+```
+
+The `color` value is the left-border color Discord renders on a character's embed. PCs and NPCs in a thread typically have different colors set by the GM in the character bot. The default `#4863A0` (steel blue) is the color used by the Realm of Darkness 20th server.
 
 ---
 

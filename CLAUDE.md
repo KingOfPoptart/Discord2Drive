@@ -11,6 +11,7 @@ uv run discord2drive "<thread_url>" "<drive_path>" ["<drive_path>" ...]
 uv run discord2drive "<thread_url>" --dry-run
 uv run discord2drive "<thread_url>" --output-local "<dir>"
 uv run discord2drive "<thread_url>" "<drive_path>" --output-local "<dir>"
+uv run discord2drive "<thread_url>" --auto-parse-pcs
 ```
 
 ## How to run tests
@@ -45,6 +46,7 @@ All credentials live in `~/discord2drive/` — never in the project directory.
 | `~/discord2drive/discord_token` | Discord bot token (plain text) |
 | `~/discord2drive/google_creds.json` | OAuth client credentials (from Google Cloud Console) |
 | `~/discord2drive/google_token.json` | OAuth token cache — auto-created on first run |
+| `~/discord2drive/settings.toml` | Optional — Drive root/master names and PC embed color for `--auto-parse-pcs` |
 | `~/discord2drive/integ.json` | Integration test config — test thread URL (see below) |
 
 ## Integration tests
@@ -73,6 +75,12 @@ Create a thread in any server the bot is in, paste a few messages, and drop its 
 - Message type 21 = thread starter — real content is in `referenced_message`, not the message body itself
 - Message type 4 = channel rename system event — skip it
 - Empty messages (no content, no attachments) are skipped
+- Webhook/bot messages carry text in `embeds[0].description` (character narration) or `embeds[0].title` + `fields` (dice rolls); `content` is empty or just custom emoji
+- `Message.embed_color` holds the integer from `embeds[0].color` — used by `extract_pc_names()` to identify PC characters by their embed left-border color
+
+## --auto-parse-pcs
+
+PC characters in roleplay threads are identified by their embed color (`embeds[0].color`). The GM sets a distinct color per character in the bot; PCs share one color and NPCs share another. `extract_pc_names(messages, pc_color_hex)` returns character names (in first-appearance order) whose embed color matches the configured hex value. Requires `~/discord2drive/settings.toml` with `[drive]` (root, master) and `[auto_pc]` (color) sections.
 
 ## Google Drive notes
 
