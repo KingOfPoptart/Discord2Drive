@@ -91,6 +91,11 @@ def test_slugify_special_chars():
     assert _slugify("Elara & Davan: The Market!") == "elara-davan-the-market"
 
 
+def test_slugify_non_ascii():
+    assert _slugify("Café au Lait") == "cafe-au-lait"
+    assert _slugify("Ünïcödé") == "unicode"
+
+
 def test_slugify_truncates():
     long_name = "a" * 200
     assert len(_slugify(long_name)) <= 80

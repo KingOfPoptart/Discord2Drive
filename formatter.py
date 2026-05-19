@@ -1,6 +1,7 @@
 """Converts a list of Discord messages into a readable markdown transcript."""
 
 import re
+import unicodedata
 from datetime import datetime, timezone
 from discord_client import Message
 
@@ -13,7 +14,9 @@ def _format_timestamp(iso: str) -> str:
 
 
 def _slugify(text: str) -> str:
-    """Convert thread name to a safe filename."""
+    """Convert thread name to a safe cross-platform filename."""
+    text = unicodedata.normalize("NFKD", text)
+    text = text.encode("ascii", "ignore").decode("ascii")
     text = text.lower().strip()
     text = re.sub(r"[^\w\s-]", "", text)
     text = re.sub(r"[\s_-]+", "-", text)

@@ -153,6 +153,13 @@ def test_fetch_404_raises_clear_error():
             fetch_thread_messages(THREAD_ID, "fake-token")
 
 
+def test_fetch_network_error_raises_client_error():
+    import requests as req
+    with patch("discord_client.requests.get", side_effect=req.exceptions.ConnectionError("refused")):
+        with pytest.raises(DiscordClientError, match="Network error"):
+            fetch_thread_messages(THREAD_ID, "fake-token")
+
+
 def test_fetch_paginates_when_full_batch():
     """When a batch has 100 messages, it should request the next page."""
     page1 = [_make_raw_message(str(i), "user", f"msg {i}") for i in range(100, 0, -1)]

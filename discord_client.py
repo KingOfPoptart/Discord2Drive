@@ -2,6 +2,7 @@
 
 import re
 import requests
+import requests.exceptions
 from dataclasses import dataclass, field
 from typing import Optional
 
@@ -55,12 +56,15 @@ def fetch_thread_messages(thread_id: str, bot_token: str) -> list[Message]:
         if before:
             params["before"] = before
 
-        resp = requests.get(
-            f"{DISCORD_API}/channels/{thread_id}/messages",
-            headers=headers,
-            params=params,
-            timeout=30,
-        )
+        try:
+            resp = requests.get(
+                f"{DISCORD_API}/channels/{thread_id}/messages",
+                headers=headers,
+                params=params,
+                timeout=30,
+            )
+        except requests.exceptions.RequestException as e:
+            raise DiscordClientError(f"Network error fetching messages: {e}") from e
 
         if resp.status_code == 401:
             raise DiscordClientError("Invalid bot token — check your credentials.")
@@ -131,11 +135,14 @@ def fetch_thread_messages(thread_id: str, bot_token: str) -> list[Message]:
 def fetch_thread_info(thread_id: str, bot_token: str) -> dict:
     """Return channel/thread metadata (name, type, etc.)."""
     headers = {"Authorization": f"Bot {bot_token}"}
-    resp = requests.get(
-        f"{DISCORD_API}/channels/{thread_id}",
-        headers=headers,
-        timeout=30,
-    )
+    try:
+        resp = requests.get(
+            f"{DISCORD_API}/channels/{thread_id}",
+            headers=headers,
+            timeout=30,
+        )
+    except requests.exceptions.RequestException as e:
+        raise DiscordClientError(f"Network error fetching thread info: {e}") from e
     if not resp.ok:
         raise DiscordClientError(
             f"Could not fetch thread info: {resp.status_code} {resp.text}"

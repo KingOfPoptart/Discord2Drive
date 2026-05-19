@@ -125,6 +125,13 @@ def test_upload_returns_web_view_link():
     assert url.startswith("https://drive.google.com")
 
 
+def test_folder_name_with_single_quote():
+    # "Chris's Notes" would break an unescaped Drive query
+    service = _make_service(list_results=[[{"id": "folder-id", "name": "Chris's Notes"}]])
+    result = resolve_drive_path(service, "Chris's Notes")
+    assert result == "folder-id"
+
+
 def test_upload_falls_back_to_constructed_url_if_no_link():
     service = MagicMock()
     service.files().list().execute.return_value = {"files": []}

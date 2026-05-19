@@ -79,6 +79,7 @@ def main() -> None:
         print(f"Google Drive error: {e}", file=sys.stderr)
         sys.exit(1)
 
+    any_failed = False
     for drive_path in args.drive_paths:
         print(f"Uploading to '{drive_path}' ...")
         try:
@@ -87,8 +88,11 @@ def main() -> None:
             print(f"  Done: {url}")
         except drive_client.DriveClientError as e:
             print(f"  Upload failed: {e}", file=sys.stderr)
+            any_failed = True
 
     print("Finished.")
+    if any_failed:
+        sys.exit(1)
 
 
 if __name__ == "__main__":

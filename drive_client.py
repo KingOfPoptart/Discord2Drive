@@ -48,15 +48,20 @@ def _authenticate(credentials_file: Path, token_cache: Path) -> Credentials:
             )
             creds = flow.run_local_server(port=0)
 
-        token_cache.write_text(creds.to_json())
+        token_cache.write_text(creds.to_json(), encoding="utf-8")
 
     return creds
+
+
+def _drive_escape(value: str) -> str:
+    """Escape a string for use in a Drive API query (single-quote delimiter)."""
+    return value.replace("\\", "\\\\").replace("'", "\\'")
 
 
 def _resolve_or_create_folder(service, name: str, parent_id: str) -> str:
     """Return the Drive folder ID for `name` under `parent_id`, creating it if absent."""
     query = (
-        f"name = {name!r} "
+        f"name = '{_drive_escape(name)}' "
         f"and '{parent_id}' in parents "
         f"and mimeType = '{_FOLDER_MIME}' "
         f"and trashed = false"
@@ -111,7 +116,7 @@ def upload_file(
     """
     # Check for an existing file with this name in the folder
     query = (
-        f"name = {filename!r} "
+        f"name = '{_drive_escape(filename)}' "
         f"and '{folder_id}' in parents "
         f"and trashed = false"
     )
