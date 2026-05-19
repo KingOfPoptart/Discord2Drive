@@ -7,6 +7,7 @@ from discord_client import (
     parse_thread_url,
     fetch_thread_messages,
     fetch_thread_info,
+    extract_pc_names,
     DiscordClientError,
     Message,
 )
@@ -294,3 +295,49 @@ def test_fetch_paginates_when_full_batch():
     assert len(call_args) == 2
     assert "before" in call_args[1]
     assert len(msgs) == 101
+
+
+# --- extract_pc_names ---
+
+PC_COLOR = "#4863A0"
+PC_COLOR_INT = 0x4863A0
+
+
+def _msg(author: str, color: int | None) -> Message:
+    return Message(id="1", author=author, timestamp="2026-05-19T00:00:00+00:00", content="hi", embed_color=color)
+
+
+def test_extract_pc_names_returns_pcs_in_order():
+    msgs = [
+        _msg("Emilio Lopez", PC_COLOR_INT),
+        _msg("Game Master", 0x7F4E52),
+        _msg("Eva Kozlov", PC_COLOR_INT),
+        _msg("Monica Black", 0xF88017),
+    ]
+    assert extract_pc_names(msgs, PC_COLOR) == ["Emilio Lopez", "Eva Kozlov"]
+
+
+def test_extract_pc_names_deduplicates():
+    msgs = [
+        _msg("Emilio Lopez", PC_COLOR_INT),
+        _msg("Emilio Lopez", PC_COLOR_INT),
+        _msg("Eva Kozlov", PC_COLOR_INT),
+    ]
+    assert extract_pc_names(msgs, PC_COLOR) == ["Emilio Lopez", "Eva Kozlov"]
+
+
+def test_extract_pc_names_no_matches():
+    msgs = [
+        _msg("Game Master", 0x7F4E52),
+        _msg("Monica Black", 0xF88017),
+    ]
+    assert extract_pc_names(msgs, PC_COLOR) == []
+
+
+def test_extract_pc_names_none_color_ignored():
+    msgs = [_msg("User", None)]
+    assert extract_pc_names(msgs, PC_COLOR) == []
+
+
+def test_extract_pc_names_empty_messages():
+    assert extract_pc_names([], PC_COLOR) == []

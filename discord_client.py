@@ -40,6 +40,7 @@ class Message:
     timestamp: str
     content: str
     attachments: list[Attachment] = field(default_factory=list)
+    embed_color: int | None = None
 
 
 class DiscordClientError(Exception):
@@ -154,9 +155,12 @@ def fetch_thread_messages(thread_id: str, bot_token: str) -> list[Message]:
                 else:
                     continue
 
+            embeds = raw.get("embeds", [])
+            embed_color = embeds[0].get("color") if embeds else None
+
             content = _CUSTOM_EMOJI_RE.sub("", raw.get("content", "")).strip()
             if not content:
-                content = _text_from_embeds(raw.get("embeds", []))
+                content = _text_from_embeds(embeds)
             content = _resolve_mentions(content, raw.get("mentions", []))
 
             if not content and not raw.get("attachments"):
@@ -168,6 +172,7 @@ def fetch_thread_messages(thread_id: str, bot_token: str) -> list[Message]:
                     author=raw["author"]["global_name"] or raw["author"]["username"],
                     timestamp=raw["timestamp"],
                     content=content,
+                    embed_color=embed_color,
                     attachments=[
                         Attachment(
                             filename=a["filename"],
@@ -187,6 +192,18 @@ def fetch_thread_messages(thread_id: str, bot_token: str) -> list[Message]:
     # Discord returns newest-first; reverse to get chronological order
     messages.reverse()
     return messages
+
+
+def extract_pc_names(messages: list[Message], pc_color_hex: str) -> list[str]:
+    """Return unique PC character names in first-appearance order, identified by embed color."""
+    pc_color = int(pc_color_hex.lstrip("#"), 16)
+    seen: set[str] = set()
+    result: list[str] = []
+    for msg in messages:
+        if msg.embed_color == pc_color and msg.author not in seen:
+            seen.add(msg.author)
+            result.append(msg.author)
+    return result
 
 
 def fetch_thread_info(thread_id: str, bot_token: str) -> dict:

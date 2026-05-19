@@ -39,27 +39,35 @@ def main() -> None:
         metavar="dir",
         help="Save the transcript to this local directory.",
     )
+    parser.add_argument(
+        "--auto-parse-pcs",
+        action="store_true",
+        help="Detect PC characters by embed color and upload to root/master and root/<PC name>/. "
+             "Requires [drive] and [auto_pc] sections in ~/discord2drive/settings.toml.",
+    )
 
     args = parser.parse_args()
 
-    if not args.drive_paths and not args.dry_run and not args.output_local:
-        parser.error("specify at least one drive_path, --output-local <dir>, or --dry-run")
+    if args.auto_parse_pcs and args.drive_paths:
+        parser.error("--auto-parse-pcs cannot be combined with explicit drive_paths")
 
-    # Load config — exits with a clear message if anything is missing
+    if not args.drive_paths and not args.dry_run and not args.output_local and not args.auto_parse_pcs:
+        parser.error("specify at least one drive_path, --output-local <dir>, --auto-parse-pcs, or --dry-run")
+
+    needs_google = (bool(args.drive_paths) or args.auto_parse_pcs) and not args.dry_run
+
     try:
-        cfg = config.load(require_google=bool(args.drive_paths) and not args.dry_run)
+        cfg = config.load(require_google=needs_google, require_auto_pc=args.auto_parse_pcs)
     except config.ConfigError as e:
         print(f"Configuration error:\n{e}", file=sys.stderr)
         sys.exit(1)
 
-    # Parse thread URL
     try:
         _, thread_id = discord_client.parse_thread_url(args.thread_url)
     except discord_client.DiscordClientError as e:
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
 
-    # Fetch thread
     print(f"Fetching thread {args.thread_url} ...")
     try:
         info = discord_client.fetch_thread_info(thread_id, cfg.discord_token)
@@ -71,7 +79,6 @@ def main() -> None:
     thread_name = info.get("name", "Untitled Thread")
     print(f"  Thread: {thread_name!r} — {len(messages)} messages")
 
-    # Format transcript
     transcript = formatter.format_transcript(thread_name, messages)
     filename = formatter.make_filename(thread_name)
 
@@ -87,10 +94,21 @@ def main() -> None:
         print(transcript)
         return
 
-    if not args.drive_paths:
+    # Determine Drive upload paths
+    if args.auto_parse_pcs:
+        pc_names = discord_client.extract_pc_names(messages, cfg.auto_pc.pc_color)
+        if not pc_names:
+            print("Error: --auto-parse-pcs found no PC characters in this thread.", file=sys.stderr)
+            sys.exit(1)
+        print(f"  Found PCs: {', '.join(pc_names)}")
+        root = cfg.auto_pc.drive_root
+        upload_paths = [f"{root}/{cfg.auto_pc.master_dir}"] + [f"{root}/{name}" for name in pc_names]
+    else:
+        upload_paths = args.drive_paths
+
+    if not upload_paths:
         return
 
-    # Upload to each Drive path
     print("Connecting to Google Drive ...")
     try:
         service = drive_client.build_service(cfg.google_creds_file, cfg.google_token_file)
@@ -99,7 +117,7 @@ def main() -> None:
         sys.exit(1)
 
     any_failed = False
-    for drive_path in args.drive_paths:
+    for drive_path in upload_paths:
         print(f"Uploading to '{drive_path}' ...")
         try:
             folder_id = drive_client.resolve_drive_path(service, drive_path)
