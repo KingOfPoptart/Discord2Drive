@@ -8,6 +8,8 @@ from discord_client import (
     fetch_thread_messages,
     fetch_thread_info,
     extract_pc_names,
+    _rgb_to_hsl,
+    _color_matches,
     DiscordClientError,
     Message,
 )
@@ -409,3 +411,70 @@ def test_extract_pc_names_none_color_ignored():
 
 def test_extract_pc_names_empty_messages():
     assert extract_pc_names([], PC_COLOR) == []
+
+
+# --- _rgb_to_hsl ---
+
+def test_rgb_to_hsl_red():
+    h, s, l = _rgb_to_hsl(255, 0, 0)
+    assert abs(h - 0.0) < 1
+    assert s > 0.99
+
+def test_rgb_to_hsl_blue():
+    h, s, l = _rgb_to_hsl(72, 99, 160)   # #4863A0
+    assert 195 <= h <= 265
+    assert s > 0.15
+
+def test_rgb_to_hsl_gray_low_saturation():
+    _, s, _ = _rgb_to_hsl(128, 128, 128)
+    assert s == 0.0
+
+
+# --- _color_matches ---
+
+def test_color_matches_exact_hex():
+    assert _color_matches(PC_COLOR_INT, "#4863A0") is True
+
+def test_color_matches_exact_hex_wrong_color():
+    assert _color_matches(0x7F4E52, "#4863A0") is False
+
+def test_color_matches_named_blue_matches_pc_color():
+    assert _color_matches(PC_COLOR_INT, "blue") is True    # #4863A0 is blue
+
+def test_color_matches_named_blue_rejects_orange():
+    assert _color_matches(0xF88017, "blue") is False       # orange
+
+def test_color_matches_named_blue_rejects_red():
+    assert _color_matches(0x7F4E52, "blue") is False       # reddish-brown
+
+def test_color_matches_named_green():
+    assert _color_matches(0x3CB371, "green") is True       # medium sea green
+
+def test_color_matches_named_red_wraps_hue():
+    assert _color_matches(0xCC2200, "red") is True         # hue near 0°/360°
+
+def test_color_matches_named_gray_rejected():
+    # Low saturation — should not match any named color
+    assert _color_matches(0x808080, "blue") is False
+
+def test_color_matches_invalid_name_raises():
+    with pytest.raises(DiscordClientError, match="Unknown color name"):
+        _color_matches(0x4863A0, "mauve")
+
+
+# --- extract_pc_names with named color ---
+
+def test_extract_pc_names_by_name_blue():
+    msgs = [
+        _msg("Emilio Lopez", PC_COLOR_INT),   # blue
+        _msg("Game Master", 0x7F4E52),        # reddish
+        _msg("Eva Kozlov", PC_COLOR_INT),     # blue
+    ]
+    assert extract_pc_names(msgs, "blue") == ["Emilio Lopez", "Eva Kozlov"]
+
+def test_extract_pc_names_name_excludes_other_hues():
+    msgs = [
+        _msg("Emilio Lopez", PC_COLOR_INT),   # blue — matches
+        _msg("Game Master", 0xF88017),        # orange — excluded
+    ]
+    assert extract_pc_names(msgs, "green") == []

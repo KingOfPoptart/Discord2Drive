@@ -98,7 +98,9 @@ The tests make no assumptions about content — they only assert that messages a
 
 PC characters in roleplay threads are identified by their embed color (`embeds[0].color`). The GM sets a distinct color per character in the bot; PCs share one color and NPCs share another. `extract_pc_names(messages, pc_color_hex)` returns character names (in first-appearance order) whose embed color matches the configured hex value.
 
-Auto-detection is the default. Use `--disable-parse-pcs` to write to explicit paths instead. Requires `~/discord2drive/settings.toml` with an `[auto_pc]` section containing `folder` (Drive folder name), `master` (master doc name), and `color` (PC embed color hex).
+Auto-detection is the default. Use `--disable-parse-pcs` to write to explicit paths instead. Requires `~/discord2drive/settings.toml` with an `[auto_pc]` section containing `folder` (Drive folder name), `master` (master doc name), and `color` (PC embed color).
+
+`color` accepts either a hex string (`#4863A0` — exact match) or a color name (`blue`, `green`, `red`, `purple`, `orange`, `yellow`, `teal`, `pink` — hue-range match). Color names are more robust: any shade of that hue matches, so a slight bot color change doesn't break detection. The named-color path converts the embed color int to HSL and checks the hue against a defined range, with a minimum saturation of 0.15 to exclude near-gray colors.
 
 ## Google Docs notes (docs_client.py)
 

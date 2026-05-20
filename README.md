@@ -173,14 +173,14 @@ client_secret = "GOCSPX-..."
 [auto_pc]                   # required for default auto-PC mode
 folder = "masquerade"       # Drive folder containing all character docs
 master = "master"           # name of the master Google Doc
-color = "#4863A0"           # embed color that identifies PC characters
+color = "blue"              # embed color that identifies PC characters
 ```
 
 - `[discord] token` — your Discord bot token (from the Bot page in the developer portal)
 - `[google] client_id` / `client_secret` — from the OAuth client you created in Google Cloud Console
 - `[auto_pc]` — required for the default auto-PC mode; omit only if you always use `--disable-parse-pcs`
 
-The `color` value is the hex embed color that identifies PC characters in Discord. PCs and NPCs typically have different colors set by the GM in the character bot.
+The `color` value identifies which embed color belongs to PC characters. You can use a color name (`blue`, `green`, `red`, `purple`, `orange`, `yellow`, `teal`, `pink`) or an exact hex value (`#4863A0`). Color names match any shade in that hue range, so the tool stays robust even if the bot's exact color shifts slightly. PCs and NPCs typically have different colors set by the GM in the character bot.
 
 The file `google_token.json` is created automatically the first time you authorize with Google. You do not need to create it yourself.
 

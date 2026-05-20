@@ -193,13 +193,59 @@ def fetch_thread_messages(thread_id: str, bot_token: str) -> list[Message]:
     return messages
 
 
-def extract_pc_names(messages: list[Message], pc_color_hex: str) -> list[str]:
+_HUE_RANGES: dict[str, list[tuple[float, float]]] = {
+    "red":    [(0, 15), (345, 360)],
+    "orange": [(15, 45)],
+    "yellow": [(45, 75)],
+    "green":  [(75, 165)],
+    "teal":   [(165, 195)],
+    "blue":   [(195, 265)],
+    "purple": [(265, 315)],
+    "pink":   [(315, 345)],
+}
+
+
+def _rgb_to_hsl(r: int, g: int, b: int) -> tuple[float, float, float]:
+    r_, g_, b_ = r / 255.0, g / 255.0, b / 255.0
+    cmax, cmin = max(r_, g_, b_), min(r_, g_, b_)
+    delta = cmax - cmin
+    l = (cmax + cmin) / 2.0
+    if delta == 0:
+        return 0.0, 0.0, l
+    s = delta / (1.0 - abs(2.0 * l - 1.0))
+    if cmax == r_:
+        h = 60.0 * (((g_ - b_) / delta) % 6)
+    elif cmax == g_:
+        h = 60.0 * ((b_ - r_) / delta + 2)
+    else:
+        h = 60.0 * ((r_ - g_) / delta + 4)
+    return h % 360, s, l
+
+
+def _color_matches(embed_color: int, pc_color: str) -> bool:
+    """Match an embed color (int) against a hex string (exact) or color name (hue range)."""
+    if pc_color.startswith("#"):
+        return embed_color == int(pc_color.lstrip("#"), 16)
+    ranges = _HUE_RANGES.get(pc_color.lower())
+    if ranges is None:
+        raise DiscordClientError(
+            f"Unknown color name {pc_color!r}. "
+            f"Use a hex value like '#4863A0' or one of: {', '.join(sorted(_HUE_RANGES))}."
+        )
+    r = (embed_color >> 16) & 0xFF
+    g = (embed_color >> 8) & 0xFF
+    b = embed_color & 0xFF
+    h, s, _ = _rgb_to_hsl(r, g, b)
+    # Require minimum saturation so near-gray colors don't match a named hue
+    return s > 0.15 and any(lo <= h < hi for lo, hi in ranges)
+
+
+def extract_pc_names(messages: list[Message], pc_color: str) -> list[str]:
     """Return unique PC character names in first-appearance order, identified by embed color."""
-    pc_color = int(pc_color_hex.lstrip("#"), 16)
     seen: set[str] = set()
     result: list[str] = []
     for msg in messages:
-        if msg.embed_color == pc_color and msg.author not in seen:
+        if msg.embed_color is not None and _color_matches(msg.embed_color, pc_color) and msg.author not in seen:
             seen.add(msg.author)
             result.append(msg.author)
     return result
