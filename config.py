@@ -9,12 +9,10 @@ settings.toml layout:
     client_id = "xxx.apps.googleusercontent.com"
     client_secret = "GOCSPX-..."
 
-    [drive]                     # required for --auto-parse-pcs
-    root = "masquerade"
+    [auto_pc]                   # required for default auto-PC mode
+    folder = "masquerade"
     master = "master"
-
-    [auto_pc]                   # required for --auto-parse-pcs
-    color = "#4863A0"
+    color = "blue"              # hex ("#4863A0") or name ("blue", "green", ...)
 
     [test]                      # optional — only needed for integration tests
     thread_url = "https://discord.com/channels/SERVER_ID/THREAD_ID"
@@ -44,7 +42,7 @@ class ConfigError(Exception):
 class AutoPcConfig:
     folder: str     # Drive folder containing all character docs
     master: str     # name of the master Google Doc
-    pc_color: str   # hex string e.g. "#4863A0"
+    pc_color: str   # hex ("#4863A0") or color name ("blue", "green", ...)
 
 
 @dataclass(frozen=True)
@@ -124,11 +122,12 @@ def load(require_google: bool = True, require_auto_pc: bool = False) -> Config:
 
     if require_auto_pc and auto_pc is None:
         errors.append(
-            f"--auto-parse-pcs requires an [auto_pc] section in {_CONFIG_FILE}:\n"
+            f"Auto-PC detection (the default) requires an [auto_pc] section in {_CONFIG_FILE}:\n"
             "    [auto_pc]\n"
             "    folder = \"your-drive-folder\"\n"
             "    master = \"master\"\n"
-            "    color = \"#4863A0\""
+            "    color = \"blue\"  # or a hex value like \"#4863A0\"\n"
+            "Use --disable-parse-pcs to skip auto-detection."
         )
 
     if errors:

@@ -126,5 +126,5 @@ def test_load_auto_pc_none_when_sections_absent(tmp_path):
 def test_load_raises_if_require_auto_pc_and_sections_absent(tmp_path):
     _write_toml(tmp_path, _MINIMAL_TOML)
     with _patches(tmp_path)[0], _patches(tmp_path)[1]:
-        with pytest.raises(ConfigError, match="auto-parse-pcs"):
+        with pytest.raises(ConfigError, match="auto_pc"):
             load(require_auto_pc=True)
