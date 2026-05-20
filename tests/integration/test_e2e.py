@@ -13,15 +13,16 @@ import pytest
 from drive_client import build_service
 
 TEST_DRIVE_PATH = "discord2drive-test/e2e"
+_DOC_MIME = "application/vnd.google-apps.document"
 _FOLDER_MIME = "application/vnd.google-apps.folder"
 
 
-def _find_folder(service, name: str, parent_id: str) -> str | None:
+def _find_file(service, name: str, parent_id: str, mime: str) -> str | None:
     results = (
         service.files()
         .list(
             q=f"name = '{name}' and '{parent_id}' in parents "
-              f"and mimeType = '{_FOLDER_MIME}' and trashed = false",
+              f"and mimeType = '{mime}' and trashed = false",
             fields="files(id)",
         )
         .execute()
@@ -31,16 +32,16 @@ def _find_folder(service, name: str, parent_id: str) -> str | None:
 
 
 @pytest.fixture(scope="session", autouse=True)
-def cleanup_e2e_folder(google_client_config, google_token_path):
+def cleanup_e2e_doc(google_client_config, google_token_path):
     yield
     service = build_service(google_client_config, google_token_path)
-    test_root_id = _find_folder(service, "discord2drive-test", "root")
+    test_root_id = _find_file(service, "discord2drive-test", "root", _FOLDER_MIME)
     if not test_root_id:
         return
-    e2e_id = _find_folder(service, "e2e", test_root_id)
-    if e2e_id:
-        service.files().delete(fileId=e2e_id).execute()
-        print("\nCleaned up discord2drive-test/e2e")
+    doc_id = _find_file(service, "e2e", test_root_id, _DOC_MIME)
+    if doc_id:
+        service.files().delete(fileId=doc_id).execute()
+        print("\nCleaned up discord2drive-test/e2e doc")
 
 
 def _run(*args: str) -> subprocess.CompletedProcess:
@@ -52,28 +53,52 @@ def _run(*args: str) -> subprocess.CompletedProcess:
     )
 
 
+# --- default auto-parse-pcs behavior ---
+
+def test_default_auto_parse(test_thread_url):
+    result = _run(test_thread_url)
+    assert result.returncode == 0, result.stderr
+    assert "Found PCs:" in result.stdout
+    assert "docs.google.com" in result.stdout
+
+
+def test_rerun_overwrites_tab(test_thread_url):
+    first = _run(test_thread_url)
+    assert first.returncode == 0, first.stderr
+    second = _run(test_thread_url)
+    assert second.returncode == 0, second.stderr
+    assert "docs.google.com" in second.stdout
+
+
+# --- --disable-parse-pcs with explicit paths ---
+
+def test_explicit_path_upload(test_thread_url):
+    result = _run(test_thread_url, "--disable-parse-pcs", TEST_DRIVE_PATH)
+    assert result.returncode == 0, result.stderr
+    assert "docs.google.com" in result.stdout
+
+
+def test_output_local_with_drive_path(test_thread_url, tmp_path):
+    result = _run(test_thread_url, "--disable-parse-pcs", TEST_DRIVE_PATH,
+                  "--output-local", str(tmp_path))
+    assert result.returncode == 0, result.stderr
+    assert "docs.google.com" in result.stdout
+    files = list(tmp_path.iterdir())
+    assert len(files) == 1
+    assert files[0].suffix == ".md"
+
+
+# --- dry run and local output ---
+
 def test_dry_run_prints_transcript(test_thread_url):
-    result = _run(test_thread_url, "SomeFolder", "--dry-run")
+    result = _run(test_thread_url, "--dry-run")
     assert result.returncode == 0
-    assert "# " in result.stdout       # markdown heading present
-    assert "**" in result.stdout       # at least one attributed message
-
-
-def test_dry_run_does_not_require_drive_path_to_be_valid(test_thread_url):
-    result = _run(test_thread_url, "NonExistentFolder", "--dry-run")
-    assert result.returncode == 0
-
-
-def test_full_upload(test_thread_url):
-    result = _run(test_thread_url, TEST_DRIVE_PATH)
-    assert result.returncode == 0
-    assert "Done:" in result.stdout
-    assert "drive.google.com" in result.stdout
-    print(result.stdout)
+    assert "# " in result.stdout
+    assert "**" in result.stdout
 
 
 def test_output_local_saves_file(test_thread_url, tmp_path):
-    result = _run(test_thread_url, "--output-local", str(tmp_path))
+    result = _run(test_thread_url, "--output-local", str(tmp_path), "--dry-run")
     assert result.returncode == 0
     files = list(tmp_path.iterdir())
     assert len(files) == 1
@@ -84,25 +109,27 @@ def test_output_local_saves_file(test_thread_url, tmp_path):
 def test_output_local_with_dry_run_also_prints(test_thread_url, tmp_path):
     result = _run(test_thread_url, "--output-local", str(tmp_path), "--dry-run")
     assert result.returncode == 0
-    assert "# " in result.stdout       # printed to stdout
-    files = list(tmp_path.iterdir())
-    assert len(files) == 1             # and saved locally
-
-
-def test_dry_run_without_drive_path(test_thread_url):
-    result = _run(test_thread_url, "--dry-run")
-    assert result.returncode == 0
     assert "# " in result.stdout
-    assert "**" in result.stdout
+    assert len(list(tmp_path.iterdir())) == 1
 
 
-def test_output_local_with_drive_path(test_thread_url, tmp_path):
-    result = _run(test_thread_url, TEST_DRIVE_PATH, "--output-local", str(tmp_path))
-    assert result.returncode == 0
-    assert "drive.google.com" in result.stdout
-    files = list(tmp_path.iterdir())
-    assert len(files) == 1
-    assert files[0].suffix == ".md"
+# --- error cases ---
+
+def test_explicit_path_without_disable_flag_errors(test_thread_url):
+    result = _run(test_thread_url, "some/path")
+    assert result.returncode == 2
+    assert "disable-parse-pcs" in result.stderr
+
+
+def test_single_segment_path_errors(test_thread_url):
+    result = _run(test_thread_url, "--disable-parse-pcs", "NoSlashHere")
+    assert result.returncode == 2
+    assert "folder" in result.stderr.lower()
+
+
+def test_disable_parse_without_destination_errors(test_thread_url):
+    result = _run(test_thread_url, "--disable-parse-pcs")
+    assert result.returncode == 2
 
 
 def test_missing_thread_url_exits_with_error():
@@ -110,12 +137,7 @@ def test_missing_thread_url_exits_with_error():
     assert result.returncode == 2
 
 
-def test_no_destination_exits_with_error(discord_token, google_client_config):
-    result = _run("https://discord.com/channels/111/222")
-    assert result.returncode == 2
-
-
-def test_invalid_url_exits_cleanly(discord_token, google_client_config):
-    result = _run("https://example.com/not-discord", "SomeFolder")
+def test_invalid_url_exits_cleanly():
+    result = _run("https://example.com/not-discord", "--dry-run")
     assert result.returncode == 1
     assert "Unrecognised" in result.stderr

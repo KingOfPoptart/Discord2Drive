@@ -1,66 +1,56 @@
 # Discord2Drive
 
-Export Discord thread transcripts to Google Drive. Point it at a thread URL and one or more Drive folder paths — it fetches every message, formats them into a readable markdown document, and uploads it. You can also save locally with `--output-local`, or just preview with `--dry-run`. Folders are created automatically if they don't exist. Running it again on the same thread overwrites the file rather than creating a duplicate.
+Export Discord thread transcripts to Google Docs. Point it at a thread URL — it fetches every message, formats them as a readable markdown transcript, auto-detects PC characters by embed color, and writes it as a **tab** inside each character's Google Doc. Running it again on the same thread updates the tab in place rather than creating a duplicate.
 
 ---
 
 ## Usage
 
 ```bash
-uv run discord2drive <thread_url> [drive_path ...] [--dry-run] [--output-local <dir>] [--auto-parse-pcs]
+uv run discord2drive <thread_url> [--dry-run] [--output-local <dir>]
+uv run discord2drive <thread_url> --disable-parse-pcs <drive_path> [<drive_path> ...]
 ```
+
+By default the tool auto-detects PCs and writes to the folder and docs configured in `settings.toml`. Use `--disable-parse-pcs` to write to explicit paths instead.
 
 ### Examples
 
-Export a thread to a single folder:
+Export a thread (auto-detects PCs, writes to configured folder):
 ```bash
-uv run discord2drive \
-  "https://discord.com/channels/1234567890/9876543210" \
-  "Scenes/Act 1"
+uv run discord2drive "https://discord.com/channels/1234567890/9876543210"
 ```
 
-Export to multiple folders at once (e.g. a master file and a character file):
-```bash
-uv run discord2drive \
-  "https://discord.com/channels/1234567890/9876543210" \
-  "Scenes/Master" \
-  "Scenes/Characters/Elara"
-```
+This detects which characters in the thread are PCs (by their embed color), then writes the transcript to `folder/master` and to a doc for each PC — e.g. `masquerade/master`, `masquerade/Emilio Lopez`, `masquerade/Eva Kozlov`. The thread name becomes the tab name inside each doc.
 
-Auto-detect PC characters and upload to their folders automatically (requires `settings.toml` — see [Storing Credentials](#storing-credentials)):
-```bash
-uv run discord2drive \
-  "https://discord.com/channels/1234567890/9876543210" \
-  --auto-parse-pcs
-```
-
-This detects which characters in the thread are PCs (by their embed color), then uploads the transcript to `root/master` and to a folder for each PC — e.g. `masquerade/master`, `masquerade/Emilio Lopez`, `masquerade/Eva Kozlov`.
-
-Preview the transcript without uploading anything:
+Preview the transcript without writing anything:
 ```bash
 uv run discord2drive \
   "https://discord.com/channels/1234567890/9876543210" \
   --dry-run
 ```
 
-Save the transcript to a local directory only (no Drive upload):
+Save the transcript to a local file (use `--dry-run` to skip the Drive upload):
 ```bash
 uv run discord2drive \
   "https://discord.com/channels/1234567890/9876543210" \
-  --output-local ~/transcripts
+  --output-local ~/transcripts \
+  --dry-run
 ```
 
-Save locally and upload to Drive at the same time:
+Write to explicit Drive paths instead of auto-detecting PCs:
 ```bash
 uv run discord2drive \
   "https://discord.com/channels/1234567890/9876543210" \
-  "Scenes/Master" \
-  --output-local ~/transcripts
+  --disable-parse-pcs \
+  "masquerade/master" \
+  "masquerade/Elara"
 ```
+
+Drive paths use the format `folder/doc-name` — the folder is created if it doesn't exist, and the doc is created inside it if absent.
 
 ### Output format
 
-Each thread is saved as a markdown file named `{thread-name}_{date}.md`:
+Each transcript is written as a tab in the target Google Doc. Tab name = thread name. Content is markdown:
 
 ```markdown
 # Scene - Elara and Davan in the Market
@@ -128,13 +118,15 @@ The bot will now appear in your server's member list. It must be in any server w
 
 ---
 
-### Set Up Google Drive Access
+### Set Up Google Drive and Docs Access
 
-The tool uploads files via a Google OAuth app. This is a one-time setup.
+The tool writes to Google Docs via a Google OAuth app. This is a one-time setup.
 
 1. Go to [console.cloud.google.com](https://console.cloud.google.com) and create a new project (top bar → project dropdown → **New Project**).
 
-2. With your project selected, go to **APIs & Services → Enable APIs and Services**, search for **Google Drive API**, and click **Enable**.
+2. With your project selected, go to **APIs & Services → Enable APIs and Services** and enable both:
+   - **Google Drive API**
+   - **Google Docs API**
 
 3. Go to **APIs & Services → OAuth consent screen**:
    - User type: **External**
@@ -178,17 +170,15 @@ token = "your-bot-token"
 client_id = "xxx.apps.googleusercontent.com"
 client_secret = "GOCSPX-..."
 
-[drive]                     # required for --auto-parse-pcs
-root = "masquerade"
-master = "master"
-
-[auto_pc]                   # required for --auto-parse-pcs
-color = "#4863A0"
+[auto_pc]                   # required for default auto-PC mode
+folder = "masquerade"       # Drive folder containing all character docs
+master = "master"           # name of the master Google Doc
+color = "#4863A0"           # embed color that identifies PC characters
 ```
 
 - `[discord] token` — your Discord bot token (from the Bot page in the developer portal)
-- `[google] client_id` / `client_secret` — from the OAuth client you created in Google Cloud Console (see Google Drive setup below)
-- `[drive]` / `[auto_pc]` — only needed if you use `--auto-parse-pcs`
+- `[google] client_id` / `client_secret` — from the OAuth client you created in Google Cloud Console
+- `[auto_pc]` — required for the default auto-PC mode; omit only if you always use `--disable-parse-pcs`
 
 The `color` value is the hex embed color that identifies PC characters in Discord. PCs and NPCs typically have different colors set by the GM in the character bot.
 
@@ -216,7 +206,7 @@ uv run pytest tests/ --ignore=tests/integration
 uv run pytest tests/
 ```
 
-The integration tests hit the real Discord and Google Drive APIs. If any required file is absent — `discord_token`, `google_creds.json`, or `integ.json` — the tests **fail** with a clear message explaining exactly what to create and where. Nothing silently passes or skips.
+The integration tests hit the real Discord, Google Drive, and Google Docs APIs. If any required config is absent, the tests **fail** with a clear message explaining exactly what to add. Nothing silently passes or skips.
 
 ### Integration test config
 
@@ -227,7 +217,7 @@ The integration tests need a test thread to run against. Add it to `~/discord2dr
 thread_url = "https://discord.com/channels/SERVER_ID/THREAD_ID"
 ```
 
-Create any thread in a server where your bot is present, post a few messages, then paste its URL here. Right-click the thread in Discord and choose **Copy Link** to get the URL. The tests make no assumptions about the thread's content — they only verify that messages are returned, a transcript is produced, and the upload succeeds.
+Create any thread in a server where your bot is present, post a few messages, then paste its URL here. Right-click the thread in Discord and choose **Copy Link** to get the URL. The tests make no assumptions about the thread's content.
 
 ### Test layout
 
@@ -235,12 +225,14 @@ Create any thread in a server where your bot is present, post a few messages, th
 tests/
     test_config.py               # config loading and validation
     test_discord_client.py       # URL parsing and message fetching (mocked)
-    test_drive_client.py         # folder resolution and file upload (mocked)
+    test_docs_client.py          # doc and tab operations (mocked)
+    test_drive_client.py         # folder resolution (mocked)
     test_formatter.py            # transcript formatting (pure, no I/O)
     integration/
-        conftest.py              # all credential checks; provides discord_token, google_creds_path, test_thread_url fixtures
-        test_discord_live.py     # fetches the test thread from integ.json
-        test_drive_live.py       # creates a folder, uploads, and cleans up
+        conftest.py              # credential checks; discord_token, google_client_config, etc.
+        test_discord_live.py     # fetches the test thread via real API
+        test_docs_live.py        # creates a doc, writes tabs, and cleans up
+        test_drive_live.py       # creates a folder, resolves paths, and cleans up
         test_e2e.py              # runs the full pipeline via the CLI
 ```
 
@@ -249,13 +241,12 @@ tests/
 ```
 Discord2Drive/
     main.py              # CLI entry point
-    config.py            # loads credentials from ~/discord2drive/
+    config.py            # loads credentials from ~/discord2drive/settings.toml
     discord_client.py    # Discord REST API — fetches thread messages
     formatter.py         # converts messages to a markdown transcript
-    drive_client.py      # Google Drive — folder resolution and file upload
+    drive_client.py      # Google Drive — folder resolution
+    docs_client.py       # Google Docs — doc and tab management
     pyproject.toml       # dependencies and project metadata
     uv.lock              # locked dependency versions
     CLAUDE.md            # developer steering notes for Claude Code
-    .claude/
-        PLAN.md          # implementation plan and notes
 ```

@@ -42,9 +42,9 @@ class ConfigError(Exception):
 
 @dataclass(frozen=True)
 class AutoPcConfig:
-    drive_root: str
-    master_dir: str
-    pc_color: str  # hex string e.g. "#4863A0"
+    folder: str     # Drive folder containing all character docs
+    master: str     # name of the master Google Doc
+    pc_color: str   # hex string e.g. "#4863A0"
 
 
 @dataclass(frozen=True)
@@ -110,26 +110,24 @@ def load(require_google: bool = True, require_auto_pc: bool = False) -> Config:
             "    client_secret = \"GOCSPX-...\""
         )
 
-    drive = data.get("drive", {})
     apc = data.get("auto_pc", {})
     auto_pc: AutoPcConfig | None = None
-    if drive and apc:
+    if apc:
         try:
             auto_pc = AutoPcConfig(
-                drive_root=drive["root"],
-                master_dir=drive["master"],
+                folder=apc["folder"],
+                master=apc["master"],
                 pc_color=apc["color"],
             )
         except KeyError as e:
-            errors.append(f"settings.toml missing required key: {e.args[0]}")
+            errors.append(f"settings.toml missing required key in [auto_pc]: {e.args[0]}")
 
     if require_auto_pc and auto_pc is None:
         errors.append(
-            f"--auto-parse-pcs requires [drive] and [auto_pc] sections in {_CONFIG_FILE}:\n"
-            "    [drive]\n"
-            "    root = \"your-root-folder\"\n"
-            "    master = \"master\"\n\n"
+            f"--auto-parse-pcs requires an [auto_pc] section in {_CONFIG_FILE}:\n"
             "    [auto_pc]\n"
+            "    folder = \"your-drive-folder\"\n"
+            "    master = \"master\"\n"
             "    color = \"#4863A0\""
         )
 

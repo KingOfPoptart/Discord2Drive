@@ -8,6 +8,7 @@ from pathlib import Path
 
 import config
 import discord_client
+import docs_client
 import drive_client
 import formatter
 
@@ -15,7 +16,9 @@ import formatter
 def main() -> None:
     parser = argparse.ArgumentParser(
         prog="discord2drive",
-        description="Export a Discord thread transcript to one or more Google Drive folders.",
+        description="Export a Discord thread transcript as a tab in a Google Doc. "
+                    "By default, auto-detects PC characters by embed color and writes "
+                    "to the configured folder and master doc.",
     )
     parser.add_argument(
         "thread_url",
@@ -25,13 +28,18 @@ def main() -> None:
         "drive_paths",
         nargs="*",
         metavar="drive_path",
-        help="Google Drive folder path(s) to upload to (e.g. 'Scenes/Act 1'). "
-             "Folders are created if they don't exist.",
+        help="Drive path(s) in 'folder/doc-name' format. "
+             "Requires --disable-parse-pcs.",
+    )
+    parser.add_argument(
+        "--disable-parse-pcs",
+        action="store_true",
+        help="Disable auto PC detection. Use explicit drive_path arguments instead.",
     )
     parser.add_argument(
         "--dry-run",
         action="store_true",
-        help="Fetch and format the transcript but do not upload to Drive. "
+        help="Fetch and format the transcript but do not write to Drive. "
              "Prints the transcript to stdout.",
     )
     parser.add_argument(
@@ -39,25 +47,33 @@ def main() -> None:
         metavar="dir",
         help="Save the transcript to this local directory.",
     )
-    parser.add_argument(
-        "--auto-parse-pcs",
-        action="store_true",
-        help="Detect PC characters by embed color and upload to root/master and root/<PC name>/. "
-             "Requires [drive] and [auto_pc] sections in ~/discord2drive/settings.toml.",
-    )
 
-    args = parser.parse_args()
+    args = parser.parse_intermixed_args()
 
-    if args.auto_parse_pcs and args.drive_paths:
-        parser.error("--auto-parse-pcs cannot be combined with explicit drive_paths")
+    if args.drive_paths and not args.disable_parse_pcs:
+        parser.error(
+            "explicit drive_paths require --disable-parse-pcs; "
+            "by default the tool auto-detects PC characters from embed color"
+        )
 
-    if not args.drive_paths and not args.dry_run and not args.output_local and not args.auto_parse_pcs:
-        parser.error("specify at least one drive_path, --output-local <dir>, --auto-parse-pcs, or --dry-run")
+    if args.disable_parse_pcs and not args.drive_paths and not args.dry_run and not args.output_local:
+        parser.error(
+            "--disable-parse-pcs requires at least one drive_path, --output-local <dir>, or --dry-run"
+        )
 
-    needs_google = (bool(args.drive_paths) or args.auto_parse_pcs) and not args.dry_run
+    for dp in args.drive_paths:
+        if "/" not in dp.strip():
+            parser.error(
+                f"drive_path {dp!r} must include a folder component — "
+                "use 'folder/doc-name' format (e.g. 'masquerade/master')"
+            )
+
+    auto_parse = not args.disable_parse_pcs
+    needs_google = (auto_parse or bool(args.drive_paths)) and not args.dry_run
+    require_auto_pc = auto_parse and not args.dry_run
 
     try:
-        cfg = config.load(require_google=needs_google, require_auto_pc=args.auto_parse_pcs)
+        cfg = config.load(require_google=needs_google, require_auto_pc=require_auto_pc)
     except config.ConfigError as e:
         print(f"Configuration error:\n{e}", file=sys.stderr)
         sys.exit(1)
@@ -94,37 +110,40 @@ def main() -> None:
         print(transcript)
         return
 
-    # Determine Drive upload paths
-    if args.auto_parse_pcs:
+    # Determine Drive paths (folder/doc_name format)
+    if auto_parse:
         pc_names = discord_client.extract_pc_names(messages, cfg.auto_pc.pc_color)
         if not pc_names:
-            print("Error: --auto-parse-pcs found no PC characters in this thread.", file=sys.stderr)
+            print("Error: no PC characters detected in this thread.", file=sys.stderr)
             sys.exit(1)
         print(f"  Found PCs: {', '.join(pc_names)}")
-        root = cfg.auto_pc.drive_root
-        upload_paths = [f"{root}/{cfg.auto_pc.master_dir}"] + [f"{root}/{name}" for name in pc_names]
+        folder = cfg.auto_pc.folder
+        upload_paths = [f"{folder}/{cfg.auto_pc.master}"] + [f"{folder}/{name}" for name in pc_names]
     else:
         upload_paths = args.drive_paths
 
     if not upload_paths:
         return
 
-    print("Connecting to Google Drive ...")
+    print("Connecting to Google ...")
     try:
-        service = drive_client.build_service(cfg.google_client_config, cfg.google_token_file)
-    except drive_client.DriveClientError as e:
-        print(f"Google Drive error: {e}", file=sys.stderr)
+        drive_service = drive_client.build_service(cfg.google_client_config, cfg.google_token_file)
+        docs_service = docs_client.build_docs_service(cfg.google_client_config, cfg.google_token_file)
+    except (drive_client.DriveClientError, docs_client.DocsClientError) as e:
+        print(f"Google API error: {e}", file=sys.stderr)
         sys.exit(1)
 
     any_failed = False
     for drive_path in upload_paths:
-        print(f"Uploading to '{drive_path}' ...")
+        folder_path, doc_name = drive_path.strip().rsplit("/", 1)
+        print(f"Writing tab '{thread_name}' → '{folder_path}/{doc_name}' ...")
         try:
-            folder_id = drive_client.resolve_drive_path(service, drive_path)
-            url = drive_client.upload_file(service, filename, transcript, folder_id)
+            folder_id = drive_client.resolve_drive_path(drive_service, folder_path)
+            doc_id = docs_client.find_or_create_doc(drive_service, doc_name, folder_id)
+            url = docs_client.upsert_tab(docs_service, doc_id, thread_name, transcript)
             print(f"  Done: {url}")
-        except drive_client.DriveClientError as e:
-            print(f"  Upload failed: {e}", file=sys.stderr)
+        except (drive_client.DriveClientError, docs_client.DocsClientError) as e:
+            print(f"  Failed: {e}", file=sys.stderr)
             any_failed = True
 
     print("Finished.")

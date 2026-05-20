@@ -15,11 +15,9 @@ client_secret = "test-secret"
 """
 
 _FULL_TOML = _MINIMAL_TOML + """
-[drive]
-root = "masquerade"
-master = "master"
-
 [auto_pc]
+folder = "masquerade"
+master = "master"
 color = "#4863A0"
 """
 
@@ -113,8 +111,8 @@ def test_load_auto_pc_parsed_from_settings(tmp_path):
     with _patches(tmp_path)[0], _patches(tmp_path)[1]:
         cfg = load()
     assert isinstance(cfg.auto_pc, AutoPcConfig)
-    assert cfg.auto_pc.drive_root == "masquerade"
-    assert cfg.auto_pc.master_dir == "master"
+    assert cfg.auto_pc.folder == "masquerade"
+    assert cfg.auto_pc.master == "master"
     assert cfg.auto_pc.pc_color == "#4863A0"
 
 

@@ -96,7 +96,7 @@ def fetch_thread_messages(thread_id: str, bot_token: str) -> list[Message]:
     """
     headers = {"Authorization": f"Bot {bot_token}"}
     messages: list[Message] = []
-    before: Optional[str] = None
+    before: str | None = None
 
     while True:
         params: dict = {"limit": 100}

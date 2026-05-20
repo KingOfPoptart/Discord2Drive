@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import io
 from pathlib import Path
 
 from google.auth.transport.requests import Request
@@ -10,7 +9,6 @@ from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
-from googleapiclient.http import MediaIoBaseUpload
 
 SCOPES = ["https://www.googleapis.com/auth/drive"]
 
@@ -22,7 +20,7 @@ class DriveClientError(Exception):
     pass
 
 
-def _authenticate(client_config: dict, token_cache: Path) -> Credentials:
+def get_credentials(client_config: dict, token_cache: Path) -> Credentials:
     """
     Return valid OAuth2 credentials, refreshing or re-authorising as needed.
     On first run this opens a browser tab to complete the OAuth flow.
@@ -98,66 +96,10 @@ def resolve_drive_path(service, path: str, root_id: str = "root") -> str:
     return current_id
 
 
-def upload_file(
-    service,
-    filename: str,
-    content: str,
-    folder_id: str,
-) -> str:
-    """
-    Upload a text file to Drive under folder_id.
-    If a file with the same name already exists in that folder, it is replaced.
-    Returns the web view URL of the uploaded file.
-    """
-    # Check for an existing file with this name in the folder
-    query = (
-        f"name = '{_drive_escape(filename)}' "
-        f"and '{folder_id}' in parents "
-        f"and trashed = false"
-    )
-    existing = (
-        service.files()
-        .list(q=query, fields="files(id)", spaces="drive")
-        .execute()
-        .get("files", [])
-    )
-
-    media = MediaIoBaseUpload(
-        io.BytesIO(content.encode("utf-8")),
-        mimetype="text/markdown",
-        resumable=False,
-    )
-
-    try:
-        if existing:
-            file = (
-                service.files()
-                .update(
-                    fileId=existing[0]["id"],
-                    media_body=media,
-                    fields="id, webViewLink",
-                )
-                .execute()
-            )
-        else:
-            file = (
-                service.files()
-                .create(
-                    body={"name": filename, "parents": [folder_id]},
-                    media_body=media,
-                    fields="id, webViewLink",
-                )
-                .execute()
-            )
-    except HttpError as e:
-        raise DriveClientError(f"Drive API error uploading {filename!r}: {e}") from e
-
-    return file.get("webViewLink", f"https://drive.google.com/file/d/{file['id']}/view")
-
 
 def build_service(client_config: dict, token_cache: Path):
     """Authenticate and return a Drive API service object."""
-    creds = _authenticate(client_config, token_cache)
+    creds = get_credentials(client_config, token_cache)
     try:
         return build("drive", "v3", credentials=creds)
     except HttpError as e:

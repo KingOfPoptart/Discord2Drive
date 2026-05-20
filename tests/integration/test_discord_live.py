@@ -1,6 +1,6 @@
 """
 Integration test: hits the real Discord API against the test thread
-defined in ~/discord2drive/integ.json.
+defined in the [test] section of ~/discord2drive/settings.toml.
 
 Fails with setup instructions if any required config is absent.
 """

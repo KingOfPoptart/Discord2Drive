@@ -11,7 +11,7 @@ dependencies = [
 ]
 
 [tool.setuptools]
-py-modules = ["main", "config", "discord_client", "formatter", "drive_client"]
+py-modules = ["main", "config", "discord_client", "formatter", "drive_client", "docs_client"]
 
 [project.scripts]
 discord2drive = "main:main"
