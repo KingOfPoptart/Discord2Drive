@@ -3,8 +3,10 @@
 from pathlib import Path
 from unittest.mock import MagicMock, patch, call
 import pytest
+from google.auth.exceptions import RefreshError
 
 from drive_client import (
+    get_credentials,
     resolve_drive_path,
     DriveClientError,
 )
@@ -97,3 +99,80 @@ def test_folder_name_with_single_quote():
     service = _make_service(list_results=[[{"id": "folder-id", "name": "Chris's Notes"}]])
     result = resolve_drive_path(service, "Chris's Notes")
     assert result == "folder-id"
+
+
+# --- get_credentials ---
+
+CLIENT_CONFIG = {"installed": {"client_id": "x", "client_secret": "y"}}
+
+
+@patch("drive_client.InstalledAppFlow")
+@patch("drive_client.Request")
+@patch("drive_client.Credentials")
+def test_get_credentials_valid_uses_cached_creds(mock_creds_cls, mock_request, mock_flow, tmp_path):
+    token_file = tmp_path / "token.json"
+    token_file.write_text("{}")
+
+    mock_creds = MagicMock()
+    mock_creds.valid = True
+    mock_creds_cls.from_authorized_user_file.return_value = mock_creds
+
+    result = get_credentials(CLIENT_CONFIG, token_file)
+
+    assert result is mock_creds
+    mock_creds.refresh.assert_not_called()
+    mock_flow.from_client_config.assert_not_called()
+
+
+@patch("drive_client.InstalledAppFlow")
+@patch("drive_client.Request")
+@patch("drive_client.Credentials")
+def test_get_credentials_expired_refreshes_successfully(mock_creds_cls, mock_request, mock_flow, tmp_path):
+    token_file = tmp_path / "token.json"
+    token_file.write_text("{}")
+
+    mock_creds = MagicMock()
+    mock_creds.valid = False
+    mock_creds.expired = True
+    mock_creds.refresh_token = "rtoken"
+    mock_creds.to_json.return_value = '{"refreshed": true}'
+
+    def _refresh(_req):
+        mock_creds.valid = True
+
+    mock_creds.refresh.side_effect = _refresh
+    mock_creds_cls.from_authorized_user_file.return_value = mock_creds
+
+    result = get_credentials(CLIENT_CONFIG, token_file)
+
+    assert result is mock_creds
+    mock_creds.refresh.assert_called_once()
+    mock_flow.from_client_config.assert_not_called()
+    assert token_file.read_text() == '{"refreshed": true}'
+
+
+@patch("drive_client.InstalledAppFlow")
+@patch("drive_client.Request")
+@patch("drive_client.Credentials")
+def test_get_credentials_invalid_grant_reauths(mock_creds_cls, mock_request, mock_flow, tmp_path):
+    token_file = tmp_path / "token.json"
+    token_file.write_text("{}")
+
+    mock_creds = MagicMock()
+    mock_creds.valid = False
+    mock_creds.expired = True
+    mock_creds.refresh_token = "rtoken"
+    mock_creds.refresh.side_effect = RefreshError("invalid_grant: Token has been expired or revoked.")
+    mock_creds_cls.from_authorized_user_file.return_value = mock_creds
+
+    new_creds = MagicMock()
+    new_creds.to_json.return_value = '{"new": true}'
+    mock_flow.from_client_config.return_value.run_local_server.return_value = new_creds
+
+    result = get_credentials(CLIENT_CONFIG, token_file)
+
+    assert result is new_creds
+    assert not token_file.exists() or token_file.read_text() == '{"new": true}'
+    mock_flow.from_client_config.assert_called_once_with(CLIENT_CONFIG, ["https://www.googleapis.com/auth/drive"])
+    mock_flow.from_client_config.return_value.run_local_server.assert_called_once_with(port=0)
+    assert token_file.read_text() == '{"new": true}'
